@@ -69,9 +69,20 @@ create table if not exists public.conversations (
   client_grade text,
   aim text,
   setting text,
+  himself_snapshot jsonb,
+  client_snapshot jsonb,
+  aim_snapshot jsonb,
+  setting_snapshot jsonb,
   started_at timestamptz not null default now(),
   ended_at timestamptz
 );
+
+-- Safe to re-run: adds the snapshot columns if this table already existed
+-- from before this feature was added.
+alter table public.conversations add column if not exists himself_snapshot jsonb;
+alter table public.conversations add column if not exists client_snapshot jsonb;
+alter table public.conversations add column if not exists aim_snapshot jsonb;
+alter table public.conversations add column if not exists setting_snapshot jsonb;
 
 alter table public.conversations enable row level security;
 
@@ -192,6 +203,7 @@ create policy "insert progress notes"
 -- 6. Helpful indexes
 -- ---------------------------------------------------------------------------
 create index if not exists idx_conversations_user on public.conversations(user_id);
+create index if not exists idx_conversations_open on public.conversations(user_id, ended_at);
 create index if not exists idx_messages_conversation on public.messages(conversation_id);
 create index if not exists idx_reports_conversation on public.coaching_reports(conversation_id);
 create index if not exists idx_notes_user on public.progress_notes(user_id);

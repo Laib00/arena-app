@@ -385,6 +385,7 @@ export default function App() {
 
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
+  const [resumeChecked, setResumeChecked] = useState(false);
 
   const [himself, setHimself] = useState({
     name: "Laiba",
@@ -416,6 +417,58 @@ export default function App() {
   const [evalError, setEvalError] = useState(null);
 
   const scrollRef = useRef(null);
+
+  // On login, check for an open (not-yet-ended) conversation and resume it
+  // exactly where it left off — full agent profile, client, scenario, and
+  // message history restored. Only ends when the user hits End & Evaluate,
+  // or explicitly starts a new session.
+  useEffect(() => {
+    if (!session || !profile) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data: openConvs } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("user_id", profile.id)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1);
+
+      const openConv = openConvs?.[0];
+      if (!openConv || !openConv.client_snapshot) {
+        if (!cancelled) setResumeChecked(true);
+        return;
+      }
+
+      const { data: pastMessages } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", openConv.id)
+        .order("created_at", { ascending: true });
+
+      if (cancelled) return;
+
+      setHimself(openConv.himself_snapshot);
+      setIndustry(openConv.client_snapshot.industry === "Property" ? "Property" : "FP");
+      setRandomClient(openConv.client_snapshot);
+      setClientId(null);
+      setAimKey(openConv.aim_snapshot?.key || null);
+      setSettingKey(openConv.setting_snapshot?.key || SETTINGS[0].key);
+      setConversationId(openConv.id);
+
+      const restored = (pastMessages || []).map((m) => ({
+        role: m.role === "agent" ? "user" : "assistant",
+        content: m.content,
+      }));
+      setDisplayMessages(restored);
+      setApiMessages(restored);
+      setStep("chat");
+      setResumeChecked(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [session, profile]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -475,6 +528,10 @@ export default function App() {
           client_grade: client.grade,
           aim: aim.key,
           setting: setting.key,
+          himself_snapshot: himself,
+          client_snapshot: client,
+          aim_snapshot: aim,
+          setting_snapshot: setting,
         })
         .select()
         .single();
@@ -565,7 +622,18 @@ export default function App() {
     }
   }
 
-  function resetAll() {
+  async function resetAll() {
+    if (conversationId) {
+      try {
+        await supabase
+          .from("conversations")
+          .update({ ended_at: new Date().toISOString() })
+          .eq("id", conversationId)
+          .is("ended_at", null); // don't overwrite if evaluation already ended it
+      } catch (e) {
+        console.error("Failed to close conversation:", e.message);
+      }
+    }
     setStep("setup");
     setDisplayMessages([]);
     setApiMessages([]);
@@ -587,6 +655,14 @@ export default function App() {
 
   if (!session) {
     return <Auth />;
+  }
+
+  if (session && profile && !resumeChecked) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
+        Checking for an open session...
+      </div>
+    );
   }
 
   if (view === "team" && profile?.role === "manager") {
