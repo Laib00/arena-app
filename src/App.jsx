@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw } from "lucide-react";
+import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users } from "lucide-react";
+import { supabase } from "./supabaseClient";
+import Auth from "./Auth";
 
 /* ============================== DATA ============================== */
 
@@ -358,6 +360,29 @@ function GradeBadge({ grade, size = "sm" }) {
 /* ============================== MAIN APP ============================== */
 
 export default function App() {
+  const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
+  const [profile, setProfile] = useState(null);
+  const [view, setView] = useState("app"); // app | team (manager dashboard)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setProfile(null);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single()
+      .then(({ data }) => setProfile(data));
+  }, [session]);
+
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
 
@@ -383,6 +408,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [conversationId, setConversationId] = useState(null);
 
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalLoading, setEvalLoading] = useState(false);
@@ -435,16 +461,50 @@ export default function App() {
     setError(null);
     setLoading(true);
     setStep("chat");
+
+    // Create the conversation row up front so every message can reference it.
+    let newConversationId = null;
+    try {
+      const { data, error: dbErr } = await supabase
+        .from("conversations")
+        .insert({
+          user_id: session.user.id,
+          industry: client.industry,
+          client_persona_id: client.id,
+          client_name: client.name,
+          client_grade: client.grade,
+          aim: aim.key,
+          setting: setting.key,
+        })
+        .select()
+        .single();
+      if (dbErr) throw dbErr;
+      newConversationId = data.id;
+      setConversationId(newConversationId);
+    } catch (e) {
+      console.error("Failed to create conversation record:", e.message);
+      // Continue anyway — the roleplay itself shouldn't be blocked by a save failure.
+    }
+
     const systemPrompt = buildSystemPrompt(himself, client, aim, setting);
     const seed = { role: "user", content: "(The roleplay is beginning now. Open the conversation yourself, in character, exactly as instructed in your system prompt.)" };
     try {
       const reply = await callGemini(systemPrompt, [seed]);
       setApiMessages([seed, { role: "assistant", content: reply }]);
       setDisplayMessages([{ role: "assistant", content: reply }]);
+      if (newConversationId) saveMessage(newConversationId, "client", reply);
     } catch (e) {
       setError("Couldn't start the roleplay. " + e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveMessage(convId, role, content) {
+    try {
+      await supabase.from("messages").insert({ conversation_id: convId, role, content });
+    } catch (e) {
+      console.error("Failed to save message:", e.message);
     }
   }
 
@@ -457,12 +517,14 @@ export default function App() {
     const newApiMessages = [...apiMessages, userMsg];
     setApiMessages(newApiMessages);
     setDisplayMessages((prev) => [...prev, userMsg]);
+    if (conversationId) saveMessage(conversationId, "agent", text);
     setLoading(true);
     try {
       const systemPrompt = buildSystemPrompt(himself, client, aim, setting);
       const reply = await callGemini(systemPrompt, newApiMessages);
       setApiMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setDisplayMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      if (conversationId) saveMessage(conversationId, "client", reply);
     } catch (e) {
       setError("Message failed to send. " + e.message);
     } finally {
@@ -482,6 +544,20 @@ export default function App() {
       const evalSystem = buildEvalPrompt(himself, client, aim, setting);
       const result = await callGemini(evalSystem, [{ role: "user", content: `Here is the transcript:\n\n${transcript}` }]);
       setEvalResult(result);
+
+      if (conversationId) {
+        const sections = parseEvalSections(result);
+        const get = (label) => sections.find((s) => s.label === label)?.text || null;
+        await supabase.from("coaching_reports").insert({
+          conversation_id: conversationId,
+          overall: get("OVERALL"),
+          strengths: get("STRENGTHS"),
+          areas_to_improve: get("AREAS TO IMPROVE"),
+          key_recommendation: get("KEY RECOMMENDATION"),
+          raw_text: result,
+        });
+        await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversationId);
+      }
     } catch (e) {
       setEvalError("Couldn't generate the evaluation. " + e.message);
     } finally {
@@ -496,12 +572,32 @@ export default function App() {
     setEvalOpen(false);
     setEvalResult(null);
     setError(null);
+    setConversationId(null);
   }
 
   const canStart = Boolean(client && aim && setting);
 
+  if (session === undefined) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
+
+  if (view === "team" && profile?.role === "manager") {
+    return <TeamDashboard profile={profile} onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
+  }
+
   return (
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: CREAM, minHeight: "100%", color: NAVY }}>
+      {step === "setup" && (
+        <TopBar profile={profile} onSignOut={() => supabase.auth.signOut()} onTeamView={() => setView("team")} />
+      )}
       {step === "setup" ? (
         <SetupScreen
           industry={industry}
@@ -536,6 +632,8 @@ export default function App() {
           scrollRef={scrollRef}
           runEvaluation={runEvaluation}
           resetAll={resetAll}
+          conversationId={conversationId}
+          profile={profile}
           evalOpen={evalOpen}
           setEvalOpen={setEvalOpen}
           evalLoading={evalLoading}
@@ -543,6 +641,24 @@ export default function App() {
           evalError={evalError}
         />
       )}
+    </div>
+  );
+}
+
+/* ============================== TOP BAR ============================== */
+
+function TopBar({ profile, onSignOut, onTeamView }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, padding: "14px 24px", fontSize: 13, color: "#6B7280" }}>
+      {profile && <span>{profile.full_name || profile.email} {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}>· Manager</span>}</span>}
+      {profile?.role === "manager" && (
+        <button onClick={onTeamView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <Users size={14} /> Team Dashboard
+        </button>
+      )}
+      <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <LogOut size={14} /> Sign Out
+      </button>
     </div>
   );
 }
@@ -779,8 +895,11 @@ const inputStyle = {
 function ChatScreen({
   himself, client, aim, setting, displayMessages, loading, error,
   input, setInput, sendMessage, scrollRef, runEvaluation, resetAll,
+  conversationId, profile,
   evalOpen, setEvalOpen, evalLoading, evalResult, evalError,
 }) {
+  const [notesOpen, setNotesOpen] = useState(false);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", maxHeight: "100vh" }}>
       {/* Header */}
@@ -795,12 +914,20 @@ function ChatScreen({
             <div style={{ fontSize: 11.5, opacity: 0.75 }}>DISC {client.disc} · {aim.key} · {setting.key}</div>
           </div>
         </div>
-        <button
-          onClick={runEvaluation}
-          style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-        >
-          <Award size={16} /> End & Evaluate
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setNotesOpen(true)}
+            style={{ background: "rgba(255,255,255,0.12)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+          >
+            Notes
+          </button>
+          <button
+            onClick={runEvaluation}
+            style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Award size={16} /> End & Evaluate
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -846,6 +973,15 @@ function ChatScreen({
           loading={evalLoading}
           result={evalResult}
           error={evalError}
+          clientName={client.name}
+        />
+      )}
+
+      {notesOpen && (
+        <NotesPanel
+          onClose={() => setNotesOpen(false)}
+          conversationId={conversationId}
+          profile={profile}
           clientName={client.name}
         />
       )}
@@ -951,4 +1087,294 @@ function parseEvalSections(text) {
     found.push({ label: p.l, text: chunk });
   });
   return found;
+}
+
+/* ============================== NOTES PANEL ============================== */
+
+function NotesPanel({ onClose, conversationId, profile, clientName }) {
+  const [notes, setNotes] = useState([]);
+  const [newNote, setNewNote] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!conversationId) {
+      setLoading(false);
+      return;
+    }
+    loadNotes();
+  }, [conversationId]);
+
+  async function loadNotes() {
+    setLoading(true);
+    const { data, error: err } = await supabase
+      .from("progress_notes")
+      .select("*, author:author_id(full_name, email)")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false });
+    if (err) setError(err.message);
+    else setNotes(data || []);
+    setLoading(false);
+  }
+
+  async function addNote() {
+    const text = newNote.trim();
+    if (!text || !profile) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.from("progress_notes").insert({
+        user_id: profile.id,
+        author_id: profile.id,
+        conversation_id: conversationId,
+        note: text,
+      });
+      if (err) throw err;
+      setNewNote("");
+      await loadNotes();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,22,40,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}>
+      <div style={{ background: "#fff", borderRadius: 14, maxWidth: 480, width: "100%", maxHeight: "85vh", overflowY: "auto", padding: 28, position: "relative" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}>
+          <X size={20} />
+        </button>
+        <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, margin: 0 }}>Progress Notes</h2>
+        <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 20 }}>Session with {clientName}</p>
+
+        {!conversationId && (
+          <div style={{ fontSize: 13, color: "#9CA3AF" }}>Notes will be available once this session has started saving.</div>
+        )}
+
+        {conversationId && (
+          <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+              <textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Add a note about this session..."
+                rows={3}
+                style={{ ...inputStyle, flex: 1, resize: "vertical", fontFamily: "inherit" }}
+              />
+            </div>
+            <button
+              onClick={addNote}
+              disabled={saving || !newNote.trim()}
+              style={{
+                padding: "9px 16px", borderRadius: 8, border: "none", background: GOLD, color: NAVY,
+                fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", marginBottom: 22,
+              }}
+            >
+              {saving ? "Saving..." : "Add Note"}
+            </button>
+
+            {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "9px 12px", borderRadius: 7, fontSize: 13, marginBottom: 14 }}>{error}</div>}
+
+            {loading ? (
+              <div style={{ fontSize: 13, color: "#9CA3AF" }}>Loading notes...</div>
+            ) : notes.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#9CA3AF" }}>No notes yet for this session.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {notes.map((n) => (
+                  <div key={n.id} style={{ borderLeft: `3px solid ${GOLD}`, paddingLeft: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: NAVY }}>{n.author?.full_name || n.author?.email || "Unknown"}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 4 }}>{new Date(n.created_at).toLocaleString()}</div>
+                    <div style={{ fontSize: 14, color: NAVY, whiteSpace: "pre-wrap" }}>{n.note}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================== TEAM DASHBOARD (manager only) ============================== */
+
+function TeamDashboard({ profile, onBack, onSignOut }) {
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null); // selected conversation id
+  const [detail, setDetail] = useState(null); // { messages, report, notes }
+  const [newNote, setNewNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  async function loadConversations() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("conversations")
+      .select("*, trainee:user_id(full_name, email)")
+      .order("started_at", { ascending: false });
+    setConversations(data || []);
+    setLoading(false);
+  }
+
+  async function openConversation(conv) {
+    setSelected(conv.id);
+    setDetail(null);
+    const [{ data: messages }, { data: reports }, { data: notes }] = await Promise.all([
+      supabase.from("messages").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: true }),
+      supabase.from("coaching_reports").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(1),
+      supabase.from("progress_notes").select("*, author:author_id(full_name, email)").eq("conversation_id", conv.id).order("created_at", { ascending: false }),
+    ]);
+    setDetail({ messages: messages || [], report: reports?.[0] || null, notes: notes || [] });
+  }
+
+  async function addManagerNote(conv) {
+    const text = newNote.trim();
+    if (!text) return;
+    setSavingNote(true);
+    await supabase.from("progress_notes").insert({
+      user_id: conv.user_id,
+      author_id: profile.id,
+      conversation_id: conv.id,
+      note: text,
+    });
+    setNewNote("");
+    await openConversation(conv);
+    setSavingNote(false);
+  }
+
+  const selectedConv = conversations.find((c) => c.id === selected);
+
+  return (
+    <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
+      <div style={{ background: NAVY, color: "#fff", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+            <ArrowLeft size={15} /> Back to app
+          </button>
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Team Dashboard</div>
+        </div>
+        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+          <LogOut size={14} /> Sign Out
+        </button>
+      </div>
+
+      <div style={{ display: "flex", height: "calc(100vh - 53px)" }}>
+        {/* Conversation list */}
+        <div style={{ width: 320, borderRight: "1px solid #E2DFD6", overflowY: "auto", background: "#fff" }}>
+          {loading ? (
+            <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>Loading...</div>
+          ) : conversations.length === 0 ? (
+            <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>No sessions recorded yet.</div>
+          ) : (
+            conversations.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => openConversation(c)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left", padding: "14px 18px",
+                  border: "none", borderBottom: "1px solid #F0EEE7", cursor: "pointer",
+                  background: selected === c.id ? "#FFFBEF" : "#fff",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: NAVY }}>{c.trainee?.full_name || c.trainee?.email || "Unknown trainee"}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                  {c.client_name} <GradeBadge grade={c.client_grade} /> · {c.industry}
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{new Date(c.started_at).toLocaleString()}</div>
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Detail panel */}
+        <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+          {!selectedConv ? (
+            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Select a session on the left to review it.</div>
+          ) : !detail ? (
+            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading session...</div>
+          ) : (
+            <div style={{ maxWidth: 700 }}>
+              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, marginBottom: 4 }}>
+                {selectedConv.trainee?.full_name || selectedConv.trainee?.email} — {selectedConv.client_name}
+              </h2>
+              <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
+                {selectedConv.industry} · {selectedConv.aim} · {selectedConv.setting} · <GradeBadge grade={selectedConv.client_grade} />
+              </p>
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Transcript</div>
+              <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, maxHeight: 300, overflowY: "auto" }}>
+                {detail.messages.length === 0 ? (
+                  <div style={{ fontSize: 13, color: "#9CA3AF" }}>No messages recorded.</div>
+                ) : (
+                  detail.messages.map((m) => (
+                    <div key={m.id} style={{ marginBottom: 10, fontSize: 13.5 }}>
+                      <span style={{ fontWeight: 700, color: m.role === "agent" ? NAVY : "#B5502F" }}>
+                        {m.role === "agent" ? selectedConv.trainee?.full_name || "Agent" : selectedConv.client_name}:
+                      </span>{" "}
+                      {m.content}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>AI Coaching Report</div>
+              {detail.report ? (
+                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
+                  {["overall", "strengths", "areas_to_improve", "key_recommendation"].map((f) =>
+                    detail.report[f] ? (
+                      <div key={f} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>{f.replace(/_/g, " ")}</div>
+                        <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{detail.report[f]}</div>
+                      </div>
+                    ) : null
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No evaluation was run for this session.</div>
+              )}
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Progress Notes</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Add a note about this trainee's session..."
+                  rows={2}
+                  style={{ ...inputStyle, flex: 1, resize: "vertical", fontFamily: "inherit" }}
+                />
+                <button
+                  onClick={() => addManagerNote(selectedConv)}
+                  disabled={savingNote || !newNote.trim()}
+                  style={{ padding: "0 18px", borderRadius: 8, border: "none", background: GOLD, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                >
+                  Add
+                </button>
+              </div>
+              {detail.notes.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#9CA3AF" }}>No notes yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {detail.notes.map((n) => (
+                    <div key={n.id} style={{ borderLeft: `3px solid ${GOLD}`, paddingLeft: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{n.author?.full_name || n.author?.email}</div>
+                      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>{new Date(n.created_at).toLocaleString()}</div>
+                      <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{n.note}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
