@@ -386,6 +386,18 @@ export default function App() {
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
   const [resumeChecked, setResumeChecked] = useState(false);
+  const [openConversations, setOpenConversations] = useState([]);
+
+  async function refreshOpenConversations() {
+    if (!profile) return;
+    const { data } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", profile.id)
+      .is("ended_at", null)
+      .order("started_at", { ascending: false });
+    setOpenConversations(data || []);
+  }
 
   const [himself, setHimself] = useState({
     name: "Laiba",
@@ -418,10 +430,37 @@ export default function App() {
 
   const scrollRef = useRef(null);
 
-  // On login, check for an open (not-yet-ended) conversation and resume it
-  // exactly where it left off — full agent profile, client, scenario, and
-  // message history restored. Only ends when the user hits End & Evaluate,
-  // or explicitly starts a new session.
+  async function loadConversationIntoState(conv) {
+    if (!conv || !conv.client_snapshot) return;
+
+    const { data: pastMessages } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conv.id)
+      .order("created_at", { ascending: true });
+
+    setHimself(conv.himself_snapshot);
+    setIndustry(conv.client_snapshot.industry === "Property" ? "Property" : "FP");
+    setRandomClient(conv.client_snapshot);
+    setClientId(null);
+    setAimKey(conv.aim_snapshot?.key || null);
+    setSettingKey(conv.setting_snapshot?.key || SETTINGS[0].key);
+    setConversationId(conv.id);
+
+    const restored = (pastMessages || []).map((m) => ({
+      role: m.role === "agent" ? "user" : "assistant",
+      content: m.content,
+    }));
+    setDisplayMessages(restored);
+    setApiMessages(restored);
+    setEvalOpen(false);
+    setEvalResult(null);
+    setStep("chat");
+  }
+
+  // On login, check for open (not-yet-ended) conversations, populate the
+  // sidebar with all of them, and auto-resume the most recent one — exactly
+  // where it left off. Only ends when the user hits End & Evaluate.
   useEffect(() => {
     if (!session || !profile) return;
     let cancelled = false;
@@ -432,37 +471,18 @@ export default function App() {
         .select("*")
         .eq("user_id", profile.id)
         .is("ended_at", null)
-        .order("started_at", { ascending: false })
-        .limit(1);
+        .order("started_at", { ascending: false });
+
+      if (cancelled) return;
+      setOpenConversations(openConvs || []);
 
       const openConv = openConvs?.[0];
       if (!openConv || !openConv.client_snapshot) {
-        if (!cancelled) setResumeChecked(true);
+        setResumeChecked(true);
         return;
       }
 
-      const { data: pastMessages } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", openConv.id)
-        .order("created_at", { ascending: true });
-
-      if (cancelled) return;
-
-      setHimself(openConv.himself_snapshot);
-      setIndustry(openConv.client_snapshot.industry === "Property" ? "Property" : "FP");
-      setRandomClient(openConv.client_snapshot);
-      setClientId(null);
-      setAimKey(openConv.aim_snapshot?.key || null);
-      setSettingKey(openConv.setting_snapshot?.key || SETTINGS[0].key);
-      setConversationId(openConv.id);
-
-      const restored = (pastMessages || []).map((m) => ({
-        role: m.role === "agent" ? "user" : "assistant",
-        content: m.content,
-      }));
-      setDisplayMessages(restored);
-      setApiMessages(restored);
+      await loadConversationIntoState(openConv);
       setStep("chat");
       setResumeChecked(true);
     })();
@@ -538,6 +558,7 @@ export default function App() {
       if (dbErr) throw dbErr;
       newConversationId = data.id;
       setConversationId(newConversationId);
+      refreshOpenConversations();
     } catch (e) {
       console.error("Failed to create conversation record:", e.message);
       // Continue anyway — the roleplay itself shouldn't be blocked by a save failure.
@@ -614,6 +635,7 @@ export default function App() {
           raw_text: result,
         });
         await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversationId);
+        refreshOpenConversations();
       }
     } catch (e) {
       setEvalError("Couldn't generate the evaluation. " + e.message);
@@ -622,18 +644,11 @@ export default function App() {
     }
   }
 
-  async function resetAll() {
-    if (conversationId) {
-      try {
-        await supabase
-          .from("conversations")
-          .update({ ended_at: new Date().toISOString() })
-          .eq("id", conversationId)
-          .is("ended_at", null); // don't overwrite if evaluation already ended it
-      } catch (e) {
-        console.error("Failed to close conversation:", e.message);
-      }
-    }
+  function resetAll() {
+    // Deliberately does NOT close the conversation in the database — only
+    // End & Evaluate does that. This just clears local UI state so you can
+    // start picking a new session; the old one stays open and resumable
+    // from My History until you explicitly evaluate it.
     setStep("setup");
     setDisplayMessages([]);
     setApiMessages([]);
@@ -670,62 +685,141 @@ export default function App() {
   }
 
   if (view === "history") {
-    return <SessionHistory profile={profile} scope="mine" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
+    return (
+      <SessionHistory
+        profile={profile}
+        scope="mine"
+        onBack={() => setView("app")}
+        onSignOut={() => supabase.auth.signOut()}
+        onContinue={async (conv) => {
+          await loadConversationIntoState(conv);
+          setView("app");
+        }}
+      />
+    );
   }
 
   return (
-    <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: CREAM, minHeight: "100%", color: NAVY }}>
-      {step === "setup" && (
-        <TopBar
-          profile={profile}
-          onSignOut={() => supabase.auth.signOut()}
-          onTeamView={() => setView("team")}
-          onHistoryView={() => setView("history")}
-        />
-      )}
-      {step === "setup" ? (
-        <SetupScreen
-          industry={industry}
-          switchIndustry={switchIndustry}
-          himself={himself}
-          updateHimself={updateHimself}
-          industryPersonas={industryPersonas}
-          clientId={clientId}
-          pickFixedClient={pickFixedClient}
-          randomClient={randomClient}
-          generateRandom={generateRandom}
-          aims={aims}
-          aimKey={aimKey}
-          setAimKey={setAimKey}
-          settingKey={settingKey}
-          setSettingKey={setSettingKey}
-          canStart={canStart}
-          startRoleplay={startRoleplay}
-        />
-      ) : (
-        <ChatScreen
-          himself={himself}
-          client={client}
-          aim={aim}
-          setting={setting}
-          displayMessages={displayMessages}
-          loading={loading}
-          error={error}
-          input={input}
-          setInput={setInput}
-          sendMessage={sendMessage}
-          scrollRef={scrollRef}
-          runEvaluation={runEvaluation}
-          resetAll={resetAll}
-          conversationId={conversationId}
-          profile={profile}
-          evalOpen={evalOpen}
-          setEvalOpen={setEvalOpen}
-          evalLoading={evalLoading}
-          evalResult={evalResult}
-          evalError={evalError}
-        />
-      )}
+    <div style={{ display: "flex", height: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <Sidebar
+        openConversations={openConversations}
+        activeId={conversationId}
+        onSelect={(conv) => loadConversationIntoState(conv)}
+        onNewChat={resetAll}
+      />
+      <div style={{ flex: 1, minWidth: 0, background: CREAM, color: NAVY, overflowY: step === "setup" ? "auto" : "hidden", height: "100%" }}>
+        {step === "setup" && (
+          <TopBar
+            profile={profile}
+            onSignOut={() => supabase.auth.signOut()}
+            onTeamView={() => setView("team")}
+            onHistoryView={() => setView("history")}
+          />
+        )}
+        {step === "setup" ? (
+          <SetupScreen
+            industry={industry}
+            switchIndustry={switchIndustry}
+            himself={himself}
+            updateHimself={updateHimself}
+            industryPersonas={industryPersonas}
+            clientId={clientId}
+            pickFixedClient={pickFixedClient}
+            randomClient={randomClient}
+            generateRandom={generateRandom}
+            aims={aims}
+            aimKey={aimKey}
+            setAimKey={setAimKey}
+            settingKey={settingKey}
+            setSettingKey={setSettingKey}
+            canStart={canStart}
+            startRoleplay={startRoleplay}
+          />
+        ) : (
+          <ChatScreen
+            himself={himself}
+            client={client}
+            aim={aim}
+            setting={setting}
+            displayMessages={displayMessages}
+            loading={loading}
+            error={error}
+            input={input}
+            setInput={setInput}
+            sendMessage={sendMessage}
+            scrollRef={scrollRef}
+            runEvaluation={runEvaluation}
+            resetAll={resetAll}
+            conversationId={conversationId}
+            profile={profile}
+            evalOpen={evalOpen}
+            setEvalOpen={setEvalOpen}
+            evalLoading={evalLoading}
+            evalResult={evalResult}
+            evalError={evalError}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================== SIDEBAR ============================== */
+
+function Sidebar({ openConversations, activeId, onSelect, onNewChat }) {
+  return (
+    <div style={{ width: 260, flexShrink: 0, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "18px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
+          <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>THE ARENA</span>
+        </div>
+        <button
+          onClick={onNewChat}
+          style={{
+            width: "100%", padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+            border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)",
+            color: "#fff", fontWeight: 600, fontSize: 13.5, textAlign: "left",
+            display: "flex", alignItems: "center", gap: 8,
+          }}
+        >
+          + New Chat
+        </button>
+      </div>
+
+      <div style={{ padding: "0 16px 8px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+        Open Chats
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
+        {openConversations.length === 0 ? (
+          <div style={{ padding: "10px 8px", fontSize: 12.5, color: "rgba(255,255,255,0.4)" }}>
+            No open chats. Start one to see it here.
+          </div>
+        ) : (
+          openConversations.map((c) => {
+            const active = c.id === activeId;
+            return (
+              <button
+                key={c.id}
+                onClick={() => onSelect(c)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 3,
+                  borderRadius: 7, border: "none", cursor: "pointer",
+                  background: active ? "rgba(212,175,55,0.18)" : "transparent",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {c.client_name}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
+                  <GradeBadge grade={c.client_grade} />
+                  <span>{c.industry}</span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -989,7 +1083,7 @@ function ChatScreen({
   const [notesOpen, setNotesOpen] = useState(false);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", maxHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header */}
       <div style={{ background: NAVY, color: "#fff", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1289,7 +1383,7 @@ function NotesPanel({ onClose, conversationId, profile, clientName }) {
 
 /* ============================== TEAM DASHBOARD (manager only) ============================== */
 
-function SessionHistory({ profile, scope, onBack, onSignOut }) {
+function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null); // selected conversation id
@@ -1366,21 +1460,33 @@ function SessionHistory({ profile, scope, onBack, onSignOut }) {
             <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>No sessions recorded yet.</div>
           ) : (
             conversations.map((c) => (
-              <button
+              <div
                 key={c.id}
-                onClick={() => openConversation(c)}
                 style={{
-                  display: "block", width: "100%", textAlign: "left", padding: "14px 18px",
-                  border: "none", borderBottom: "1px solid #F0EEE7", cursor: "pointer",
+                  padding: "14px 18px", borderBottom: "1px solid #F0EEE7",
                   background: selected === c.id ? "#FFFBEF" : "#fff",
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 13.5, color: NAVY }}>{c.trainee?.full_name || c.trainee?.email || "Unknown trainee"}</div>
-                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
-                  {c.client_name} <GradeBadge grade={c.client_grade} /> · {c.industry}
-                </div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{new Date(c.started_at).toLocaleString()}</div>
-              </button>
+                <button
+                  onClick={() => openConversation(c)}
+                  style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 13.5, color: NAVY }}>{c.trainee?.full_name || c.trainee?.email || "Unknown trainee"}</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                    {c.client_name} <GradeBadge grade={c.client_grade} /> · {c.industry}
+                    {!c.ended_at && <span style={{ color: GOLD, fontWeight: 700 }}> · Open</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{new Date(c.started_at).toLocaleString()}</div>
+                </button>
+                {!c.ended_at && scope === "mine" && onContinue && (
+                  <button
+                    onClick={() => onContinue(c)}
+                    style={{ marginTop: 8, padding: "6px 12px", borderRadius: 6, border: "none", background: GOLD, color: NAVY, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                  >
+                    Continue this session
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>
