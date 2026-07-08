@@ -590,13 +590,22 @@ export default function App() {
   }
 
   if (view === "team" && profile?.role === "manager") {
-    return <TeamDashboard profile={profile} onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
+    return <SessionHistory profile={profile} scope="team" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
+  }
+
+  if (view === "history") {
+    return <SessionHistory profile={profile} scope="mine" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
   }
 
   return (
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: CREAM, minHeight: "100%", color: NAVY }}>
       {step === "setup" && (
-        <TopBar profile={profile} onSignOut={() => supabase.auth.signOut()} onTeamView={() => setView("team")} />
+        <TopBar
+          profile={profile}
+          onSignOut={() => supabase.auth.signOut()}
+          onTeamView={() => setView("team")}
+          onHistoryView={() => setView("history")}
+        />
       )}
       {step === "setup" ? (
         <SetupScreen
@@ -647,10 +656,13 @@ export default function App() {
 
 /* ============================== TOP BAR ============================== */
 
-function TopBar({ profile, onSignOut, onTeamView }) {
+function TopBar({ profile, onSignOut, onTeamView, onHistoryView }) {
   return (
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, padding: "14px 24px", fontSize: 13, color: "#6B7280" }}>
       {profile && <span>{profile.full_name || profile.email} {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}>· Manager</span>}</span>}
+      <button onClick={onHistoryView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        My History
+      </button>
       {profile?.role === "manager" && (
         <button onClick={onTeamView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
           <Users size={14} /> Team Dashboard
@@ -1201,7 +1213,7 @@ function NotesPanel({ onClose, conversationId, profile, clientName }) {
 
 /* ============================== TEAM DASHBOARD (manager only) ============================== */
 
-function TeamDashboard({ profile, onBack, onSignOut }) {
+function SessionHistory({ profile, scope, onBack, onSignOut }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null); // selected conversation id
@@ -1215,10 +1227,12 @@ function TeamDashboard({ profile, onBack, onSignOut }) {
 
   async function loadConversations() {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("conversations")
       .select("*, trainee:user_id(full_name, email)")
       .order("started_at", { ascending: false });
+    if (scope === "mine") query = query.eq("user_id", profile.id);
+    const { data } = await query;
     setConversations(data || []);
     setLoading(false);
   }
@@ -1227,6 +1241,7 @@ function TeamDashboard({ profile, onBack, onSignOut }) {
     setSelected(conv.id);
     setDetail(null);
     const [{ data: messages }, { data: reports }, { data: notes }] = await Promise.all([
+
       supabase.from("messages").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: true }),
       supabase.from("coaching_reports").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(1),
       supabase.from("progress_notes").select("*, author:author_id(full_name, email)").eq("conversation_id", conv.id).order("created_at", { ascending: false }),
@@ -1259,7 +1274,7 @@ function TeamDashboard({ profile, onBack, onSignOut }) {
             <ArrowLeft size={15} /> Back to app
           </button>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
-          <div style={{ fontWeight: 700, fontSize: 15 }}>Team Dashboard</div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{scope === "mine" ? "My History" : "Team Dashboard"}</div>
         </div>
         <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
           <LogOut size={14} /> Sign Out
