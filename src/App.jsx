@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users } from "lucide-react";
+import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users, Trash2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 
@@ -399,6 +399,21 @@ export default function App() {
     setOpenConversations(data || []);
   }
 
+  async function deleteConversation(convId) {
+    try {
+      await supabase.from("conversations").delete().eq("id", convId);
+    } catch (e) {
+      console.error("Failed to delete conversation:", e.message);
+    }
+    if (convId === conversationId) {
+      setStep("setup");
+      setDisplayMessages([]);
+      setApiMessages([]);
+      setConversationId(null);
+    }
+    refreshOpenConversations();
+  }
+
   const [himself, setHimself] = useState({
     name: "Laiba",
     age: 28,
@@ -706,6 +721,7 @@ export default function App() {
         activeId={conversationId}
         onSelect={(conv) => loadConversationIntoState(conv)}
         onNewChat={resetAll}
+        onDelete={deleteConversation}
       />
       <div style={{ flex: 1, minWidth: 0, background: CREAM, color: NAVY, overflowY: step === "setup" ? "auto" : "hidden", height: "100%" }}>
         {step === "setup" && (
@@ -766,7 +782,7 @@ export default function App() {
 
 /* ============================== SIDEBAR ============================== */
 
-function Sidebar({ openConversations, activeId, onSelect, onNewChat }) {
+function Sidebar({ openConversations, activeId, onSelect, onNewChat, onDelete }) {
   return (
     <div style={{ width: 260, flexShrink: 0, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "18px 16px 14px" }}>
@@ -799,23 +815,46 @@ function Sidebar({ openConversations, activeId, onSelect, onNewChat }) {
           openConversations.map((c) => {
             const active = c.id === activeId;
             return (
-              <button
+              <div
                 key={c.id}
-                onClick={() => onSelect(c)}
+                className="arena-sidebar-item"
                 style={{
-                  display: "block", width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 3,
-                  borderRadius: 7, border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4, marginBottom: 3, borderRadius: 7,
                   background: active ? "rgba(212,175,55,0.18)" : "transparent",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {c.client_name}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
-                  <GradeBadge grade={c.client_grade} />
-                  <span>{c.industry}</span>
-                </div>
-              </button>
+                <button
+                  onClick={() => onSelect(c)}
+                  style={{
+                    display: "block", flex: 1, minWidth: 0, textAlign: "left", padding: "9px 10px",
+                    borderRadius: 7, border: "none", cursor: "pointer", background: "transparent",
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {c.client_name}
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
+                    <GradeBadge grade={c.client_grade} />
+                    <span>{c.industry}</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Delete this chat with ${c.client_name}? This can't be undone.`)) {
+                      onDelete(c.id);
+                    }
+                  }}
+                  title="Delete chat"
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)",
+                    padding: 6, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#E88787"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             );
           })
         )}
@@ -1087,10 +1126,6 @@ function ChatScreen({
       {/* Header */}
       <div style={{ background: NAVY, color: "#fff", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={resetAll} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13, opacity: 0.85 }}>
-            <ArrowLeft size={15} /> New
-          </button>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name} <GradeBadge grade={client.grade} /></div>
             <div style={{ fontSize: 11.5, opacity: 0.75 }}>DISC {client.disc} · {aim.key} · {setting.key}</div>
@@ -1127,20 +1162,19 @@ function ChatScreen({
 
       {/* Input */}
       <div style={{ borderTop: "1px solid #E2DFD6", background: "#fff", padding: "14px 20px" }}>
-        <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", gap: 10 }}>
-          <input
+        <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <AutoResizeTextarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            onChange={setInput}
+            onSend={sendMessage}
             placeholder="Type your response as the agent..."
-            style={{ ...inputStyle, flex: 1, padding: "12px 14px" }}
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
             style={{
               background: NAVY, color: "#fff", border: "none", borderRadius: 8, width: 44, height: 44,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               cursor: loading || !input.trim() ? "not-allowed" : "pointer", opacity: loading || !input.trim() ? 0.5 : 1,
             }}
           >
@@ -1168,6 +1202,43 @@ function ChatScreen({
         />
       )}
     </div>
+  );
+}
+
+function AutoResizeTextarea({ value, onChange, onSend, placeholder }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          onSend();
+        }
+      }}
+      placeholder={placeholder}
+      rows={1}
+      style={{
+        ...inputStyle,
+        flex: 1,
+        padding: "12px 14px",
+        resize: "none",
+        overflowY: "auto",
+        maxHeight: 200,
+        lineHeight: 1.4,
+        fontFamily: "inherit",
+      }}
+    />
   );
 }
 
