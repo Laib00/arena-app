@@ -400,10 +400,10 @@ export default function App() {
   }
 
   async function deleteConversation(convId) {
-    try {
-      await supabase.from("conversations").delete().eq("id", convId);
-    } catch (e) {
-      console.error("Failed to delete conversation:", e.message);
+    const { error: delErr } = await supabase.from("conversations").delete().eq("id", convId);
+    if (delErr) {
+      alert("Couldn't delete this chat: " + delErr.message);
+      return;
     }
     if (convId === conversationId) {
       setStep("setup");
@@ -720,7 +720,6 @@ export default function App() {
         openConversations={openConversations}
         activeId={conversationId}
         onSelect={(conv) => loadConversationIntoState(conv)}
-        onNewChat={resetAll}
         onDelete={deleteConversation}
       />
       <div style={{ flex: 1, minWidth: 0, background: CREAM, color: NAVY, overflowY: step === "setup" ? "auto" : "hidden", height: "100%" }}>
@@ -782,25 +781,14 @@ export default function App() {
 
 /* ============================== SIDEBAR ============================== */
 
-function Sidebar({ openConversations, activeId, onSelect, onNewChat, onDelete }) {
+function Sidebar({ openConversations, activeId, onSelect, onDelete }) {
   return (
     <div style={{ width: 260, flexShrink: 0, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "18px 16px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
           <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>THE ARENA</span>
         </div>
-        <button
-          onClick={onNewChat}
-          style={{
-            width: "100%", padding: "10px 12px", borderRadius: 8, cursor: "pointer",
-            border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.06)",
-            color: "#fff", fontWeight: 600, fontSize: 13.5, textAlign: "left",
-            display: "flex", alignItems: "center", gap: 8,
-          }}
-        >
-          + New Chat
-        </button>
       </div>
 
       <div style={{ padding: "0 16px 8px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 0.6 }}>
@@ -1126,6 +1114,10 @@ function ChatScreen({
       {/* Header */}
       <div style={{ background: NAVY, color: "#fff", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={resetAll} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13, opacity: 0.85 }}>
+            <ArrowLeft size={15} /> New
+          </button>
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name} <GradeBadge grade={client.grade} /></div>
             <div style={{ fontSize: 11.5, opacity: 0.75 }}>DISC {client.disc} · {aim.key} · {setting.key}</div>
