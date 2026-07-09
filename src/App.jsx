@@ -338,6 +338,24 @@ function GradeBadge({ grade, size = "sm" }) {
   );
 }
 
+/* ============================== PROFILE PERSISTENCE ============================== */
+
+async function saveProfileFields(userId, fields) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(fields)
+    .eq("id", userId)
+    .select("id, agent_profile, industry, full_name");
+  if (error) throw error;
+  if (!data?.length) {
+    throw new Error(
+      "Save didn't go through — the database may be blocking profile updates. " +
+      "Run supabase/fix_profile_rls.sql in the Supabase SQL Editor, then try again."
+    );
+  }
+  return data[0];
+}
+
 /* ============================== MAIN APP ============================== */
 
 export default function App() {
@@ -363,7 +381,12 @@ export default function App() {
       .select("*")
       .eq("id", session.user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to load profile:", error.message);
+          setHimselfLoaded(true);
+          return;
+        }
         setProfile(data);
         const ind = data?.industry === "Financial Planning" ? "FP" : "Property";
         setIndustry(ind);
@@ -437,21 +460,14 @@ export default function App() {
 
   const [himself, setHimself] = useState(DEFAULT_HIMSELF);
 
-  // Save the agent profile back to the user's account whenever it changes,
-  // so it's remembered next time instead of resetting to defaults.
-  useEffect(() => {
-    if (!himselfLoaded || !profile) return;
-    const timeout = setTimeout(async () => {
-      const { data, error: err } = await supabase
-        .from("profiles")
-        .update({ agent_profile: himself })
-        .eq("id", profile.id)
-        .select();
-      if (err) console.error("Failed to save agent profile:", err.message);
-      else if (!data || data.length === 0) console.error("Agent profile save affected 0 rows — likely blocked by a permission rule.");
-    }, 800);
-    return () => clearTimeout(timeout);
-  }, [himself, himselfLoaded, profile]);
+  async function persistAgentProfile(agentProfile) {
+    if (!profile) throw new Error("Profile not loaded yet.");
+    const row = await saveProfileFields(profile.id, { agent_profile: agentProfile });
+    const saved = row.agent_profile ?? agentProfile;
+    setHimself(saved);
+    setProfile((prev) => (prev ? { ...prev, agent_profile: saved } : prev));
+    return saved;
+  }
 
   const [clientId, setClientId] = useState(null);
   const [randomClient, setRandomClient] = useState(null);
@@ -563,23 +579,28 @@ export default function App() {
     setClientId(null);
     setRandomClient(null);
     setAimKey(null);
-    if (ind === "Property") {
-      updateHimself("occupation", "Property Agent");
-      updateHimself("certification", CERTIFICATIONS[0]);
-    } else {
-      updateHimself("occupation", "Financial Advisor");
-      updateHimself("certification", CERTIFICATIONS[1]);
-    }
+    const updatedHimself = {
+      ...himself,
+      occupation: ind === "Property" ? "Property Agent" : "Financial Advisor",
+      certification: ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1],
+    };
+    setHimself(updatedHimself);
     if (profile) {
       const dbValue = ind === "Property" ? "Property" : "Financial Planning";
-      const { data, error: err } = await supabase
-        .from("profiles")
-        .update({ industry: dbValue })
-        .eq("id", profile.id)
-        .select();
-      if (err) console.error("Failed to save industry:", err.message);
-      else if (!data || data.length === 0) console.error("Industry save affected 0 rows — likely blocked by a permission rule.");
-      setProfile((prev) => (prev ? { ...prev, industry: dbValue } : prev));
+      try {
+        const row = await saveProfileFields(profile.id, {
+          industry: dbValue,
+          agent_profile: updatedHimself,
+        });
+        setProfile((prev) => (prev ? {
+          ...prev,
+          industry: row.industry ?? dbValue,
+          agent_profile: row.agent_profile ?? updatedHimself,
+        } : prev));
+        if (row.agent_profile) setHimself(row.agent_profile);
+      } catch (err) {
+        console.error("Failed to save industry:", err.message);
+      }
     }
   }
 
@@ -759,9 +780,9 @@ export default function App() {
       <ProfileScreen
         profile={profile}
         himself={himself}
-        setHimself={setHimself}
         himselfLoaded={himselfLoaded}
         industry={industry}
+        onSave={persistAgentProfile}
         onBack={() => setView("app")}
         onSignOut={() => supabase.auth.signOut()}
       />
@@ -943,12 +964,18 @@ function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
 
 /* ============================== PROFILE SCREEN ============================== */
 
-function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, onBack, onSignOut }) {
+function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBack, onSignOut }) {
   const [form, setForm] = useState(himself);
   const [initialized, setInitialized] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+  const formRef = useRef(form);
+  const dirtyRef = useRef(false);
+
+  formRef.current = form;
+  dirtyRef.current = dirty;
 
   // Don't let the form initialize from stale defaults if this screen is
   // opened before the real saved profile has finished loading.
@@ -956,11 +983,13 @@ function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, 
     if (himselfLoaded && !initialized) {
       setForm(himself);
       setInitialized(true);
+      setDirty(false);
     }
   }, [himselfLoaded, initialized, himself]);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setDirty(true);
     setSaved(false);
   }
 
@@ -968,32 +997,35 @@ function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, 
     setSaving(true);
     setError(null);
     try {
-      const { data: rows, error: err } = await supabase
-        .from("profiles")
-        .update({ agent_profile: data })
-        .eq("id", profile.id)
-        .select();
-      if (err) throw err;
-      if (!rows || rows.length === 0) throw new Error("Save didn't go through (0 rows affected) — please try again.");
-      setHimself(data);
+      await onSave(data);
+      setDirty(false);
       setSaved(true);
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  // Auto-save shortly after any change, so nothing is lost even if the
-  // person navigates away or logs out without hitting the Save button.
+  // Auto-save shortly after the user edits a field.
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !dirty) return;
     const timeout = setTimeout(() => persist(form), 800);
     return () => clearTimeout(timeout);
-  }, [form, initialized]);
+  }, [form, initialized, dirty]);
 
   async function handleSave() {
     await persist(form);
+  }
+
+  async function handleBack() {
+    if (dirtyRef.current) {
+      const ok = await persist(formRef.current);
+      if (!ok) return;
+    }
+    onBack();
   }
 
   if (!himselfLoaded || !initialized) {
@@ -1008,7 +1040,7 @@ function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, 
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
       <div style={{ background: NAVY, color: "#fff", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+          <button onClick={handleBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
             <ArrowLeft size={15} /> Back to app
           </button>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
