@@ -724,6 +724,7 @@ export default function App() {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`
+        .arena-backdrop { display: none; }
         @media (max-width: 768px) {
           .arena-sidebar {
             position: fixed; top: 0; left: 0; height: 100vh; z-index: 40;
@@ -731,20 +732,21 @@ export default function App() {
           }
           .arena-sidebar.open { transform: translateX(0); }
           .arena-backdrop.open {
-            display: block; position: fixed; inset: 0; background: rgba(10,22,40,0.5); z-index: 39;
+            display: block !important; position: fixed; inset: 0; background: rgba(10,22,40,0.5); z-index: 39;
           }
           .arena-menu-toggle { display: flex !important; }
           .arena-agent-grid { grid-template-columns: 1fr !important; }
           .arena-setup-wrap { padding: 24px 14px 60px !important; }
         }
       `}</style>
-      <div className={`arena-backdrop${sidebarOpen ? " open" : ""}`} style={{ display: "none" }} onClick={() => setSidebarOpen(false)} />
+      <div className={`arena-backdrop${sidebarOpen ? " open" : ""}`} onClick={() => setSidebarOpen(false)} />
       <div className={`arena-sidebar${sidebarOpen ? " open" : ""}`}>
         <Sidebar
           openConversations={openConversations}
           activeId={conversationId}
           onSelect={(conv) => { loadConversationIntoState(conv); setSidebarOpen(false); }}
           onDelete={deleteConversation}
+          onClose={() => setSidebarOpen(false)}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0, background: CREAM, color: NAVY, overflowY: step === "setup" ? "auto" : "hidden", height: "100%" }}>
@@ -808,13 +810,22 @@ export default function App() {
 
 /* ============================== SIDEBAR ============================== */
 
-function Sidebar({ openConversations, activeId, onSelect, onDelete }) {
+function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
   return (
     <div style={{ width: 260, flexShrink: 0, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "18px 16px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
-          <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>THE ARENA</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
+            <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>THE ARENA</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="arena-menu-toggle"
+            style={{ display: "none", background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4 }}
+          >
+            <X size={18} />
+          </button>
         </div>
       </div>
 
