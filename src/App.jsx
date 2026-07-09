@@ -376,6 +376,8 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  const [himselfLoaded, setHimselfLoaded] = useState(false);
+
   useEffect(() => {
     if (!session) {
       setProfile(null);
@@ -388,13 +390,31 @@ export default function App() {
       .single()
       .then(({ data }) => {
         setProfile(data);
-        if (data?.industry) {
-          setIndustry(data.industry === "Property" ? "Property" : "FP");
-          updateHimself("occupation", data.industry === "Property" ? "Property Agent" : "Financial Advisor");
-          updateHimself("certification", data.industry === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1]);
+        const ind = data?.industry === "Financial Planning" ? "FP" : "Property";
+        setIndustry(ind);
+        if (data?.agent_profile) {
+          setHimself(data.agent_profile);
+        } else {
+          setHimself({
+            ...DEFAULT_HIMSELF,
+            name: data?.full_name || "",
+            occupation: ind === "Property" ? "Property Agent" : "Financial Advisor",
+            certification: ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1],
+          });
         }
+        setHimselfLoaded(true);
       });
   }, [session]);
+
+  // Save the agent profile back to the user's account whenever it changes,
+  // so it's remembered next time instead of resetting to defaults.
+  useEffect(() => {
+    if (!himselfLoaded || !profile) return;
+    const timeout = setTimeout(() => {
+      supabase.from("profiles").update({ agent_profile: himself }).eq("id", profile.id);
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [himself, himselfLoaded, profile]);
 
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
@@ -438,17 +458,19 @@ export default function App() {
     refreshOpenConversations();
   }
 
-  const [himself, setHimself] = useState({
-    name: "Laiba",
-    age: 28,
+  const DEFAULT_HIMSELF = {
+    name: "",
+    age: "",
     occupation: "Property Agent",
     nationality: "Singaporean",
-    experience: 12,
+    experience: "",
     education: "Bachelor's Degree",
     disc: "I",
     salesStyle: "Consultative",
     certification: CERTIFICATIONS[0],
-  });
+  };
+
+  const [himself, setHimself] = useState(DEFAULT_HIMSELF);
 
   const [clientId, setClientId] = useState(null);
   const [randomClient, setRandomClient] = useState(null);

@@ -28,7 +28,7 @@ export default function Auth() {
           options: { data: { full_name: fullName || email, industry } },
         });
         if (err) throw err;
-        setMessage("Check your email to confirm your account, then log in.");
+        setMessage("If this is a new account, check your email to confirm it, then log in. If you already have an account with this email (including via Google), just log in directly instead.");
         setMode("login");
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password });

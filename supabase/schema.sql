@@ -18,6 +18,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists industry text not null default 'Property';
+alter table public.profiles add column if not exists agent_profile jsonb;
 
 alter table public.profiles enable row level security;
 
