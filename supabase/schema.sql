@@ -42,12 +42,13 @@ create policy "users can update own profile"
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, full_name, industry)
+  insert into public.profiles (id, email, full_name, industry, agent_profile)
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
-    coalesce(new.raw_user_meta_data->>'industry', 'Property')
+    coalesce(new.raw_user_meta_data->>'industry', 'Property'),
+    new.raw_user_meta_data->'agent_profile'
   );
   return new;
 end;

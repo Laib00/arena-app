@@ -2,36 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users, Trash2, Menu } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
+import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
 
 /* ============================== DATA ============================== */
 
-const DISC = {
-  D: { name: "Dominance", desc: "Direct, decisive, results-oriented. Wants the bottom line fast, gets impatient with long explanations, may push back hard or interrupt if they feel the conversation is dragging. Respects confidence, not comfortable with hesitation." },
-  I: { name: "Influence", desc: "Outgoing, talkative, enthusiastic, relationship-driven. Warms up quickly, enjoys small talk, persuaded by rapport and excitement more than spreadsheets. Can be scattered on details and change their mind mid-conversation." },
-  S: { name: "Steadiness", desc: "Calm, patient, loyal, dislikes pressure or sudden change. Needs reassurance, prefers a slow steady pace, uncomfortable being rushed into a decision. Values trust built over time." },
-  C: { name: "Conscientiousness", desc: "Analytical, detail-oriented, skeptical by default. Wants data, comparisons, and proof before deciding. Asks precise follow-up questions, uncomfortable with vague or emotional answers." },
-};
-
-const SALES_STYLES = [
-  "Consultative", "Relationship-based", "Direct / Assertive closer",
-  "Educator / Advisor", "Data-driven / Analytical", "Solution selling",
-];
-
-const CERTIFICATIONS = [
-  "CEA Registered (R Number) — Property",
-  "CMFAS Papers 1, 5, 9, 9A — Financial Planning (Life Insurance & ILPs)",
-  "CMFAS Papers 1, 2, 5 — Financial Planning (General Insurance & Investments)",
-  "AWP (Associate Wealth Planner) Certified",
-  "Cross-trained: CEA + CMFAS",
-  "Newly certified / still completing licensing",
-];
-
-const NATIONALITIES = [
-  "Singaporean", "Singapore PR (originally Malaysian)", "Singapore PR (originally Chinese national)",
-  "Malaysian", "Indian national", "Indonesian", "Filipino", "Foreigner (Work Pass holder)",
-];
-
-const EDU_LEVELS = ["N-Level / O-Level", "Diploma", "Bachelor's Degree", "Master's Degree", "Professional Certification / PhD"];
 
 const SETTINGS = [
   { key: "Canvassing", desc: "This is a cold, unplanned encounter — the agent is reaching out or crossing paths with you (e.g. door-knocking, cold call, or bumping into you) with no prior relationship or appointment. You were not expecting this conversation." },
@@ -44,6 +18,7 @@ const PROPERTY_AIMS = [
   { key: "Downgrade", desc: "want to move from a bigger/older home into something smaller, simpler, or more manageable" },
   { key: "Buy First (New Purchase)", desc: "are purchasing property for the first time, with no home owned yet" },
   { key: "Sell", desc: "want to sell your current property, for reasons unrelated to also buying" },
+  { key: "Rent", desc: "want to rent — either as a tenant looking for a place, or as a landlord looking for a tenant for your property" },
 ];
 
 const FP_AIMS = [
@@ -767,6 +742,19 @@ export default function App() {
     );
   }
 
+  if (view === "profile") {
+    return (
+      <ProfileScreen
+        profile={profile}
+        himself={himself}
+        setHimself={setHimself}
+        industry={industry}
+        onBack={() => setView("app")}
+        onSignOut={() => supabase.auth.signOut()}
+      />
+    );
+  }
+
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`
@@ -802,6 +790,7 @@ export default function App() {
             onSignOut={() => supabase.auth.signOut()}
             onTeamView={() => setView("team")}
             onHistoryView={() => setView("history")}
+            onProfileView={() => setView("profile")}
             onMenuToggle={() => setSidebarOpen(true)}
           />
         )}
@@ -811,6 +800,7 @@ export default function App() {
             switchIndustry={switchIndustry}
             himself={himself}
             updateHimself={updateHimself}
+            onEditProfile={() => setView("profile")}
             industryPersonas={industryPersonas}
             metPersonaIds={metPersonaIds}
             clientId={clientId}
@@ -938,7 +928,123 @@ function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
 
 /* ============================== TOP BAR ============================== */
 
-function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onMenuToggle }) {
+/* ============================== PROFILE SCREEN ============================== */
+
+function ProfileScreen({ profile, himself, setHimself, industry, onBack, onSignOut }) {
+  const [form, setForm] = useState(himself);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setSaved(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.from("profiles").update({ agent_profile: form }).eq("id", profile.id);
+      if (err) throw err;
+      setHimself(form);
+      setSaved(true);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
+      <div style={{ background: NAVY, color: "#fff", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+            <ArrowLeft size={15} /> Back to app
+          </button>
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Your Profile</div>
+        </div>
+        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+          <LogOut size={14} /> Sign Out
+        </button>
+      </div>
+
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 24 }}>
+          Industry: <span style={{ fontWeight: 700, color: NAVY }}>{industry === "Property" ? "Property" : "Financial Planning"}</span>
+          <span style={{ color: "#9CA3AF" }}> — change this from the setup screen</span>
+        </p>
+
+        <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Field label="Name">
+            <input value={form.name} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Age">
+            <input type="number" value={form.age} onChange={(e) => update("age", e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Occupation">
+            <input value={form.occupation} onChange={(e) => update("occupation", e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Nationality">
+            <input
+              list="profile-nationality-options"
+              value={form.nationality}
+              onChange={(e) => update("nationality", e.target.value)}
+              style={inputStyle}
+            />
+            <datalist id="profile-nationality-options">
+              {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          </Field>
+          <Field label="Experience (months)">
+            <input type="number" value={form.experience} onChange={(e) => update("experience", e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Educational Level">
+            <select value={form.education} onChange={(e) => update("education", e.target.value)} style={inputStyle}>
+              {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </Field>
+          <Field label="Personality (DISC)">
+            <select value={form.disc} onChange={(e) => update("disc", e.target.value)} style={inputStyle}>
+              {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d].name}</option>)}
+            </select>
+          </Field>
+          <Field label="Sales Style">
+            <select value={form.salesStyle} onChange={(e) => update("salesStyle", e.target.value)} style={inputStyle}>
+              {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Field label="Professional Certification">
+              <select value={form.certification} onChange={(e) => update("certification", e.target.value)} style={inputStyle}>
+                {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+          </div>
+        </div>
+
+        {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginTop: 16 }}>{error}</div>}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            marginTop: 20, padding: "12px 24px", borderRadius: 8, border: "none",
+            background: GOLD, color: NAVY, fontWeight: 700, fontSize: 14,
+            cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? "Saving..." : saved ? "Saved ✓" : "Save Profile"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, onMenuToggle }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "14px 24px", fontSize: 13, color: "#6B7280" }}>
       <button
@@ -950,6 +1056,9 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onMenuToggle })
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
       {profile && <span>{profile.full_name || profile.email} {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}>· Manager</span>}</span>}
+      <button onClick={onProfileView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        Profile
+      </button>
       <button onClick={onHistoryView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
         My History
       </button>
@@ -969,7 +1078,7 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onMenuToggle })
 /* ============================== SETUP SCREEN ============================== */
 
 function SetupScreen({
-  industry, switchIndustry, himself, updateHimself, industryPersonas, metPersonaIds,
+  industry, switchIndustry, himself, updateHimself, onEditProfile, industryPersonas, metPersonaIds,
   clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey, settingKey, setSettingKey,
   canStart, startRoleplay,
 }) {
@@ -990,46 +1099,19 @@ function SetupScreen({
 
       {/* Himself */}
       <SectionLabel n="1" title="Your Agent Profile" />
-      <div className="arena-agent-grid" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 32, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        <Field label="Name">
-          <input value={himself.name} onChange={(e) => updateHimself("name", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label="Age">
-          <input type="number" value={himself.age} onChange={(e) => updateHimself("age", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label="Occupation">
-          <input value={himself.occupation} onChange={(e) => updateHimself("occupation", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label="Nationality">
-          <select value={himself.nationality} onChange={(e) => updateHimself("nationality", e.target.value)} style={inputStyle}>
-            {NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </Field>
-        <Field label="Experience (months)">
-          <input type="number" value={himself.experience} onChange={(e) => updateHimself("experience", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label="Educational Level">
-          <select value={himself.education} onChange={(e) => updateHimself("education", e.target.value)} style={inputStyle}>
-            {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </Field>
-        <Field label="Personality (DISC)">
-          <select value={himself.disc} onChange={(e) => updateHimself("disc", e.target.value)} style={inputStyle}>
-            {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d].name}</option>)}
-          </select>
-        </Field>
-        <Field label="Sales Style">
-          <select value={himself.salesStyle} onChange={(e) => updateHimself("salesStyle", e.target.value)} style={inputStyle}>
-            {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Professional Certification">
-            <select value={himself.certification} onChange={(e) => updateHimself("certification", e.target.value)} style={inputStyle}>
-              {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
+      <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>{himself.name || "(no name set)"}</div>
+          <div style={{ fontSize: 13, color: "#6B7280", marginTop: 3 }}>
+            {himself.occupation}{himself.age ? ` · ${himself.age}` : ""} · DISC {himself.disc} · {himself.salesStyle}
+          </div>
         </div>
+        <button
+          onClick={onEditProfile}
+          style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${GOLD}`, background: "#fff", color: NAVY, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+        >
+          Edit Profile
+        </button>
       </div>
 
       {/* Client */}

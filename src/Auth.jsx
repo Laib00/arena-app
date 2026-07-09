@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
 
 const NAVY = "#0A1628";
 const GOLD = "#D4AF37";
@@ -11,6 +12,13 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [industry, setIndustry] = useState("Property");
+  const [age, setAge] = useState("");
+  const [nationality, setNationality] = useState("Singaporean");
+  const [experience, setExperience] = useState("");
+  const [education, setEducation] = useState(EDU_LEVELS[2]);
+  const [disc, setDisc] = useState("I");
+  const [salesStyle, setSalesStyle] = useState(SALES_STYLES[0]);
+  const [certification, setCertification] = useState(CERTIFICATIONS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -22,10 +30,21 @@ export default function Auth() {
     setLoading(true);
     try {
       if (mode === "signup") {
+        const agentProfile = {
+          name: fullName || email,
+          age,
+          occupation: industry === "Property" ? "Property Agent" : "Financial Advisor",
+          nationality,
+          experience,
+          education,
+          disc,
+          salesStyle,
+          certification,
+        };
         const { error: err } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName || email, industry } },
+          options: { data: { full_name: fullName || email, industry, agent_profile: agentProfile } },
         });
         if (err) throw err;
         setMessage("If this is a new account, check your email to confirm it, then log in. If you already have an account with this email (including via Google), just log in directly instead.");
@@ -63,7 +82,7 @@ export default function Auth() {
         background: CREAM, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 380, padding: 32 }}>
+      <div style={{ width: "100%", maxWidth: mode === "signup" ? 460 : 380, padding: 32 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 48, height: 48, borderRadius: "50%", border: `2px solid ${GOLD}`, marginBottom: 12 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
@@ -108,7 +127,10 @@ export default function Auth() {
                     <button
                       key={ind}
                       type="button"
-                      onClick={() => setIndustry(ind)}
+                      onClick={() => {
+                        setIndustry(ind);
+                        setCertification(ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1]);
+                      }}
                       style={{
                         flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
                         border: industry === ind ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
@@ -119,6 +141,50 @@ export default function Auth() {
                       {ind}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid #E2DFD6", paddingTop: 12, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 10 }}>YOUR AGENT PROFILE</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <SmallField label="Age">
+                    <input type="number" value={age} onChange={(e) => setAge(e.target.value)} style={inputStyle} />
+                  </SmallField>
+                  <SmallField label="Experience (months)">
+                    <input type="number" value={experience} onChange={(e) => setExperience(e.target.value)} style={inputStyle} />
+                  </SmallField>
+                  <SmallField label="Nationality" full>
+                    <input
+                      list="nationality-options"
+                      value={nationality}
+                      onChange={(e) => setNationality(e.target.value)}
+                      placeholder="Start typing..."
+                      style={inputStyle}
+                    />
+                    <datalist id="nationality-options">
+                      {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+                    </datalist>
+                  </SmallField>
+                  <SmallField label="Educational Level" full>
+                    <select value={education} onChange={(e) => setEducation(e.target.value)} style={inputStyle}>
+                      {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Personality (DISC)">
+                    <select value={disc} onChange={(e) => setDisc(e.target.value)} style={inputStyle}>
+                      {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d].name}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Sales Style">
+                    <select value={salesStyle} onChange={(e) => setSalesStyle(e.target.value)} style={inputStyle}>
+                      {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Professional Certification" full>
+                    <select value={certification} onChange={(e) => setCertification(e.target.value)} style={inputStyle}>
+                      {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </SmallField>
                 </div>
               </div>
             </>
@@ -176,6 +242,15 @@ const inputStyle = {
   padding: "11px 12px", borderRadius: 8, border: "1px solid #E2DFD6", fontSize: 14,
   fontFamily: "inherit", boxSizing: "border-box", width: "100%",
 };
+
+function SmallField({ label, full, children }) {
+  return (
+    <div style={{ gridColumn: full ? "1 / -1" : "auto" }}>
+      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 4 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
 
 const linkStyle = {
   background: "none", border: "none", color: "#0A1628", fontWeight: 700, cursor: "pointer",
