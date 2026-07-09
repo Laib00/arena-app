@@ -748,6 +748,7 @@ export default function App() {
         profile={profile}
         himself={himself}
         setHimself={setHimself}
+        himselfLoaded={himselfLoaded}
         industry={industry}
         onBack={() => setView("app")}
         onSignOut={() => supabase.auth.signOut()}
@@ -930,30 +931,60 @@ function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
 
 /* ============================== PROFILE SCREEN ============================== */
 
-function ProfileScreen({ profile, himself, setHimself, industry, onBack, onSignOut }) {
+function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, onBack, onSignOut }) {
   const [form, setForm] = useState(himself);
+  const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+
+  // Don't let the form initialize from stale defaults if this screen is
+  // opened before the real saved profile has finished loading.
+  useEffect(() => {
+    if (himselfLoaded && !initialized) {
+      setForm(himself);
+      setInitialized(true);
+    }
+  }, [himselfLoaded, initialized, himself]);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setSaved(false);
   }
 
-  async function handleSave() {
+  async function persist(data) {
     setSaving(true);
     setError(null);
     try {
-      const { error: err } = await supabase.from("profiles").update({ agent_profile: form }).eq("id", profile.id);
+      const { error: err } = await supabase.from("profiles").update({ agent_profile: data }).eq("id", profile.id);
       if (err) throw err;
-      setHimself(form);
+      setHimself(data);
       setSaved(true);
     } catch (e) {
       setError(e.message);
     } finally {
       setSaving(false);
     }
+  }
+
+  // Auto-save shortly after any change, so nothing is lost even if the
+  // person navigates away or logs out without hitting the Save button.
+  useEffect(() => {
+    if (!initialized) return;
+    const timeout = setTimeout(() => persist(form), 800);
+    return () => clearTimeout(timeout);
+  }, [form, initialized]);
+
+  async function handleSave() {
+    await persist(form);
+  }
+
+  if (!himselfLoaded || !initialized) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
+        Loading your profile...
+      </div>
+    );
   }
 
   return (
