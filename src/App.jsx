@@ -374,23 +374,56 @@ const ARENA_RESPONSIVE_CSS = `
     gap: 14px;
     margin-left: auto;
   }
-  .arena-topbar-mobile-toggle { display: none; }
-  .arena-topbar-mobile-nav {
-    display: none;
-    width: 100%;
+
+  .arena-sidebar-inner {
+    width: 260px;
+    flex-shrink: 0;
+    background: #0A1628;
+    color: #fff;
+    display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding-top: 8px;
-    border-top: 1px solid #E2DFD6;
+    height: 100%;
   }
-  .arena-topbar-mobile-nav.open { display: flex; }
-  .arena-topbar-mobile-nav button {
+  .arena-sidebar-chats {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 8px;
+  }
+  .arena-sidebar-nav {
+    display: none;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    padding: 10px 8px 12px;
+    background: #0A1628;
+  }
+  .arena-sidebar-nav-user {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    padding: 4px 10px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .arena-sidebar-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     text-align: left;
-    padding: 10px 8px;
+    padding: 10px;
+    border: none;
     border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
   }
-  .arena-topbar-mobile-nav button:hover { background: #F7F4EE; }
+  .arena-sidebar-nav-btn:hover {
+    background: rgba(255,255,255,0.08);
+  }
 
   .arena-page-header {
     background: #0A1628;
@@ -468,6 +501,8 @@ const ARENA_RESPONSIVE_CSS = `
       z-index: 39;
     }
     .arena-menu-toggle { display: flex !important; }
+    .arena-sidebar-nav { display: block; }
+    .arena-topbar-desktop-nav { display: none !important; }
     .arena-agent-grid { grid-template-columns: 1fr !important; }
     .arena-setup-wrap { padding: 24px 14px 60px !important; }
     .arena-profile-grid { grid-template-columns: 1fr !important; }
@@ -479,20 +514,8 @@ const ARENA_RESPONSIVE_CSS = `
     .arena-setup-header h1 { font-size: 26px !important; }
 
     .arena-topbar {
-      flex-wrap: wrap;
       padding: 10px 14px;
       gap: 8px;
-    }
-    .arena-topbar-user { display: none; }
-    .arena-topbar-desktop-nav { display: none !important; }
-    .arena-topbar-mobile-toggle {
-      display: flex !important;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: #0A1628;
-      padding: 4px;
-      margin-left: auto;
     }
 
     .arena-page-header {
@@ -993,9 +1016,14 @@ export default function App() {
         <Sidebar
           openConversations={openConversations}
           activeId={conversationId}
+          profile={profile}
           onSelect={(conv) => { loadConversationIntoState(conv); setSidebarOpen(false); }}
           onDelete={deleteConversation}
           onClose={() => setSidebarOpen(false)}
+          onProfileView={() => { setView("profile"); setSidebarOpen(false); }}
+          onHistoryView={() => { setView("history"); setSidebarOpen(false); }}
+          onTeamView={() => { setView("team"); setSidebarOpen(false); }}
+          onSignOut={() => supabase.auth.signOut()}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0, background: CREAM, color: NAVY, overflowY: step === "setup" ? "auto" : "hidden", height: "100%" }}>
@@ -1062,10 +1090,19 @@ export default function App() {
 
 /* ============================== SIDEBAR ============================== */
 
-function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
+function Sidebar({
+  openConversations, activeId, profile,
+  onSelect, onDelete, onClose,
+  onProfileView, onHistoryView, onTeamView, onSignOut,
+}) {
+  function navAction(action) {
+    onClose();
+    action();
+  }
+
   return (
-    <div style={{ width: 260, flexShrink: 0, background: NAVY, color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ padding: "18px 16px 14px" }}>
+    <div className="arena-sidebar-inner">
+      <div style={{ padding: "18px 16px 14px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
@@ -1081,10 +1118,10 @@ function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
         </div>
       </div>
 
-      <div style={{ padding: "0 16px 8px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+      <div style={{ padding: "0 16px 8px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 0.6, flexShrink: 0 }}>
         Open Chats
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
+      <div className="arena-sidebar-chats">
         {openConversations.length === 0 ? (
           <div style={{ padding: "10px 8px", fontSize: 12.5, color: "rgba(255,255,255,0.4)" }}>
             No open chats. Start one to see it here.
@@ -1136,6 +1173,29 @@ function Sidebar({ openConversations, activeId, onSelect, onDelete, onClose }) {
             );
           })
         )}
+      </div>
+
+      <div className="arena-sidebar-nav">
+        {profile && (
+          <div className="arena-sidebar-nav-user">
+            {profile.full_name || profile.email}
+            {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
+          </div>
+        )}
+        <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onProfileView)}>
+          Profile
+        </button>
+        <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onHistoryView)}>
+          My History
+        </button>
+        {profile?.role === "manager" && (
+          <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onTeamView)}>
+            <Users size={14} /> Team Dashboard
+          </button>
+        )}
+        <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onSignOut)}>
+          <LogOut size={14} /> Sign Out
+        </button>
       </div>
     </div>
   );
@@ -1306,13 +1366,6 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
 }
 
 function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, onMenuToggle }) {
-  const [navOpen, setNavOpen] = useState(false);
-
-  function navAction(action) {
-    setNavOpen(false);
-    action();
-  }
-
   const navButtonStyle = {
     background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600,
     display: "flex", alignItems: "center", gap: 4,
@@ -1324,12 +1377,13 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, 
         onClick={onMenuToggle}
         className="arena-menu-toggle"
         style={{ display: "none", background: "none", border: "none", cursor: "pointer", color: NAVY, padding: 4 }}
+        aria-label="Open menu"
       >
         <Menu size={20} />
       </button>
       <div className="arena-topbar-actions arena-topbar-desktop-nav">
         {profile && (
-          <span className="arena-topbar-user">
+          <span>
             {profile.full_name || profile.email}
             {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
           </span>
@@ -1342,32 +1396,6 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, 
           </button>
         )}
         <button onClick={onSignOut} style={navButtonStyle}>
-          <LogOut size={14} /> Sign Out
-        </button>
-      </div>
-      <button
-        type="button"
-        className="arena-topbar-mobile-toggle"
-        onClick={() => setNavOpen((open) => !open)}
-        aria-label="Open menu"
-      >
-        <Menu size={20} />
-      </button>
-      <div className={`arena-topbar-mobile-nav${navOpen ? " open" : ""}`}>
-        {profile && (
-          <div style={{ fontSize: 12, color: "#6B7280", padding: "4px 8px 8px" }}>
-            {profile.full_name || profile.email}
-            {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
-          </div>
-        )}
-        <button onClick={() => navAction(onProfileView)} style={navButtonStyle}>Profile</button>
-        <button onClick={() => navAction(onHistoryView)} style={navButtonStyle}>My History</button>
-        {profile?.role === "manager" && (
-          <button onClick={() => navAction(onTeamView)} style={navButtonStyle}>
-            <Users size={14} /> Team Dashboard
-          </button>
-        )}
-        <button onClick={() => navAction(onSignOut)} style={navButtonStyle}>
           <LogOut size={14} /> Sign Out
         </button>
       </div>
