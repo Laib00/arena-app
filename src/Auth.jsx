@@ -10,6 +10,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [industry, setIndustry] = useState("Property");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -24,7 +25,7 @@ export default function Auth() {
         const { error: err } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName || email } },
+          options: { data: { full_name: fullName || email, industry } },
         });
         if (err) throw err;
         setMessage("Check your email to confirm your account, then log in.");
@@ -93,12 +94,34 @@ export default function Auth() {
 
         <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "signup" && (
-            <input
-              placeholder="Full name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              style={inputStyle}
-            />
+            <>
+              <input
+                placeholder="Full name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                style={inputStyle}
+              />
+              <div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Industry</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["Property", "Financial Planning"].map((ind) => (
+                    <button
+                      key={ind}
+                      type="button"
+                      onClick={() => setIndustry(ind)}
+                      style={{
+                        flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                        border: industry === ind ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                        background: industry === ind ? NAVY : "#fff",
+                        color: industry === ind ? "#fff" : NAVY,
+                      }}
+                    >
+                      {ind}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
           <input
             type="email"

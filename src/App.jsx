@@ -386,7 +386,14 @@ export default function App() {
       .select("*")
       .eq("id", session.user.id)
       .single()
-      .then(({ data }) => setProfile(data));
+      .then(({ data }) => {
+        setProfile(data);
+        if (data?.industry) {
+          setIndustry(data.industry === "Property" ? "Property" : "FP");
+          updateHimself("occupation", data.industry === "Property" ? "Property Agent" : "Financial Advisor");
+          updateHimself("certification", data.industry === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1]);
+        }
+      });
   }, [session]);
 
   const [step, setStep] = useState("setup"); // setup | chat
@@ -394,6 +401,7 @@ export default function App() {
   const [resumeChecked, setResumeChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openConversations, setOpenConversations] = useState([]);
+  const [metPersonaIds, setMetPersonaIds] = useState(new Set());
 
   async function refreshOpenConversations() {
     if (!profile) return;
@@ -404,6 +412,15 @@ export default function App() {
       .is("ended_at", null)
       .order("started_at", { ascending: false });
     setOpenConversations(data || []);
+  }
+
+  async function refreshMetPersonas() {
+    if (!profile) return;
+    const { data } = await supabase
+      .from("conversations")
+      .select("client_persona_id")
+      .eq("user_id", profile.id);
+    setMetPersonaIds(new Set((data || []).map((r) => r.client_persona_id).filter(Boolean)));
   }
 
   async function deleteConversation(convId) {
@@ -497,6 +514,7 @@ export default function App() {
 
       if (cancelled) return;
       setOpenConversations(openConvs || []);
+      refreshMetPersonas();
 
       const openConv = openConvs?.[0];
       if (!openConv || !openConv.client_snapshot) {
@@ -537,7 +555,7 @@ export default function App() {
     setHimself((prev) => ({ ...prev, [field]: value }));
   }
 
-  function switchIndustry(ind) {
+  async function switchIndustry(ind) {
     setIndustry(ind);
     setClientId(null);
     setRandomClient(null);
@@ -548,6 +566,11 @@ export default function App() {
     } else {
       updateHimself("occupation", "Financial Advisor");
       updateHimself("certification", CERTIFICATIONS[1]);
+    }
+    if (profile) {
+      const dbValue = ind === "Property" ? "Property" : "Financial Planning";
+      await supabase.from("profiles").update({ industry: dbValue }).eq("id", profile.id);
+      setProfile((prev) => (prev ? { ...prev, industry: dbValue } : prev));
     }
   }
 
@@ -581,6 +604,7 @@ export default function App() {
       newConversationId = data.id;
       setConversationId(newConversationId);
       refreshOpenConversations();
+      refreshMetPersonas();
     } catch (e) {
       console.error("Failed to create conversation record:", e.message);
       // Continue anyway — the roleplay itself shouldn't be blocked by a save failure.
@@ -766,6 +790,7 @@ export default function App() {
             himself={himself}
             updateHimself={updateHimself}
             industryPersonas={industryPersonas}
+            metPersonaIds={metPersonaIds}
             clientId={clientId}
             pickFixedClient={pickFixedClient}
             randomClient={randomClient}
@@ -922,7 +947,7 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onMenuToggle })
 /* ============================== SETUP SCREEN ============================== */
 
 function SetupScreen({
-  industry, switchIndustry, himself, updateHimself, industryPersonas,
+  industry, switchIndustry, himself, updateHimself, industryPersonas, metPersonaIds,
   clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey, settingKey, setSettingKey,
   canStart, startRoleplay,
 }) {
@@ -938,28 +963,11 @@ function SetupScreen({
         <p style={{ color: "#6B7280", fontSize: 14, marginTop: 6 }}>Practice partner roleplay — set up your session below</p>
       </header>
 
-      {/* Industry */}
-      <SectionLabel n="1" title="Industry" />
-      <div style={{ display: "flex", gap: 12, marginBottom: 32 }}>
-        {["Property", "FP"].map((ind) => (
-          <button
-            key={ind}
-            onClick={() => switchIndustry(ind)}
-            style={{
-              flex: 1, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-              border: industry === ind ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
-              background: industry === ind ? NAVY : "#fff",
-              color: industry === ind ? "#fff" : NAVY,
-              fontWeight: 600, fontSize: 15, transition: "all .15s",
-            }}
-          >
-            {ind === "Property" ? "Property" : "Financial Planning"}
-          </button>
-        ))}
-      </div>
+      {/* Industry (set at signup) */}
+      <IndustryDisplay industry={industry} switchIndustry={switchIndustry} />
 
       {/* Himself */}
-      <SectionLabel n="2" title="Your Agent Profile" />
+      <SectionLabel n="1" title="Your Agent Profile" />
       <div className="arena-agent-grid" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 32, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <Field label="Name">
           <input value={himself.name} onChange={(e) => updateHimself("name", e.target.value)} style={inputStyle} />
@@ -1003,7 +1011,7 @@ function SetupScreen({
       </div>
 
       {/* Client */}
-      <SectionLabel n="3" title="Choose Your Client" />
+      <SectionLabel n="2" title="Choose Your Client" />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -6, marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <p style={{ color: "#6B7280", fontSize: 13, margin: 0 }}>16 personas: 2 Easy, 6 Medium, 6 Hard, 2 Impossible</p>
         <button
@@ -1046,20 +1054,31 @@ function SetupScreen({
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
               {items.map((p) => {
                 const selected = !randomClient && clientId === p.id;
+                const met = metPersonaIds?.has(p.id);
                 return (
                   <button
                     key={p.id}
                     onClick={() => pickFixedClient(p.id)}
                     style={{
-                      textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
-                      border: selected ? `2px solid ${GOLD}` : "1px solid #E2DFD6",
+                      position: "relative", textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
+                      border: selected ? `2px solid ${GOLD}` : met ? "1px solid #4C8F5F" : "1px solid #E2DFD6",
                       background: selected ? "#FFFBEF" : "#fff",
                       boxShadow: selected ? "0 2px 8px rgba(212,175,55,0.25)" : "none",
                     }}
                   >
+                    {met && (
+                      <span
+                        title="You've spoken with this client before"
+                        style={{
+                          position: "absolute", top: 8, right: 8, width: 8, height: 8, borderRadius: "50%",
+                          background: "#4C8F5F",
+                        }}
+                      />
+                    )}
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>{p.age} · {p.occupation}</div>
                     <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>DISC {p.disc} · {p.needLevel.split(" (")[0]}</div>
+                    {met && <div style={{ fontSize: 10, color: "#4C8F5F", fontWeight: 600, marginTop: 3 }}>Met before</div>}
                   </button>
                 );
               })}
@@ -1070,7 +1089,7 @@ function SetupScreen({
       </div>
 
       {/* Scenario */}
-      <SectionLabel n="4" title="Choose Scenario" />
+      <SectionLabel n="3" title="Choose Scenario" />
       <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 40 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Aim</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -1118,6 +1137,44 @@ function SetupScreen({
         }}
       >
         Start Roleplay <ArrowRight size={18} />
+      </button>
+    </div>
+  );
+}
+
+function IndustryDisplay({ industry, switchIndustry }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 32 }}>
+        {["Property", "FP"].map((ind) => (
+          <button
+            key={ind}
+            onClick={() => { switchIndustry(ind); setEditing(false); }}
+            style={{
+              padding: "10px 18px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
+              border: industry === ind ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+              background: industry === ind ? NAVY : "#fff",
+              color: industry === ind ? "#fff" : NAVY,
+            }}
+          >
+            {ind === "Property" ? "Property" : "Financial Planning"}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 32, fontSize: 13, color: "#6B7280" }}>
+      <span>Industry:</span>
+      <span style={{ fontWeight: 700, color: NAVY }}>{industry === "Property" ? "Property" : "Financial Planning"}</span>
+      <button
+        onClick={() => setEditing(true)}
+        style={{ background: "none", border: "none", cursor: "pointer", color: GOLD, fontWeight: 600, fontSize: 13, textDecoration: "underline" }}
+      >
+        change
       </button>
     </div>
   );

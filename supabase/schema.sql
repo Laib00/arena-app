@@ -13,8 +13,11 @@ create table if not exists public.profiles (
   email text,
   full_name text,
   role text not null default 'trainee' check (role in ('trainee', 'manager')),
+  industry text not null default 'Property' check (industry in ('Property', 'Financial Planning')),
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists industry text not null default 'Property';
 
 alter table public.profiles enable row level security;
 
@@ -38,8 +41,13 @@ create policy "users can update own profile"
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, full_name)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name', new.email));
+  insert into public.profiles (id, email, full_name, industry)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    coalesce(new.raw_user_meta_data->>'industry', 'Property')
+  );
   return new;
 end;
 $$ language plpgsql security definer;
@@ -104,6 +112,12 @@ create policy "trainees update own conversations"
   to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
+
+drop policy if exists "trainees delete own conversations" on public.conversations;
+create policy "trainees delete own conversations"
+  on public.conversations for delete
+  to authenticated
+  using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
 -- 3. MESSAGES — every turn of every conversation
