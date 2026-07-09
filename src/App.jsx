@@ -406,16 +406,6 @@ export default function App() {
       });
   }, [session]);
 
-  // Save the agent profile back to the user's account whenever it changes,
-  // so it's remembered next time instead of resetting to defaults.
-  useEffect(() => {
-    if (!himselfLoaded || !profile) return;
-    const timeout = setTimeout(() => {
-      supabase.from("profiles").update({ agent_profile: himself }).eq("id", profile.id);
-    }, 800);
-    return () => clearTimeout(timeout);
-  }, [himself, himselfLoaded, profile]);
-
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
   const [resumeChecked, setResumeChecked] = useState(false);
@@ -471,6 +461,16 @@ export default function App() {
   };
 
   const [himself, setHimself] = useState(DEFAULT_HIMSELF);
+
+  // Save the agent profile back to the user's account whenever it changes,
+  // so it's remembered next time instead of resetting to defaults.
+  useEffect(() => {
+    if (!himselfLoaded || !profile) return;
+    const timeout = setTimeout(() => {
+      supabase.from("profiles").update({ agent_profile: himself }).eq("id", profile.id);
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [himself, himselfLoaded, profile]);
 
   const [clientId, setClientId] = useState(null);
   const [randomClient, setRandomClient] = useState(null);
