@@ -36,7 +36,27 @@ create policy "users can update own profile"
   on public.profiles for update
   to authenticated
   using (auth.uid() = id)
-  with check (auth.uid() = id and role = (select role from public.profiles where id = auth.uid()));
+  with check (auth.uid() = id);
+
+-- Role changes must go through a service role (e.g. a manager promoting
+-- someone via the SQL editor), never through a normal user-facing update.
+-- Enforced here with a trigger instead of an RLS WITH CHECK subquery,
+-- since self-referencing subqueries in RLS policies are unreliable and can
+-- silently block legitimate updates that don't even touch this column.
+create or replace function public.protect_role_column()
+returns trigger as $$
+begin
+  if new.role is distinct from old.role then
+    new.role := old.role;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists protect_role_column on public.profiles;
+create trigger protect_role_column
+  before update on public.profiles
+  for each row execute function public.protect_role_column();
 
 -- Auto-create a profile row whenever someone signs up.
 create or replace function public.handle_new_user()

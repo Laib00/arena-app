@@ -441,8 +441,14 @@ export default function App() {
   // so it's remembered next time instead of resetting to defaults.
   useEffect(() => {
     if (!himselfLoaded || !profile) return;
-    const timeout = setTimeout(() => {
-      supabase.from("profiles").update({ agent_profile: himself }).eq("id", profile.id);
+    const timeout = setTimeout(async () => {
+      const { data, error: err } = await supabase
+        .from("profiles")
+        .update({ agent_profile: himself })
+        .eq("id", profile.id)
+        .select();
+      if (err) console.error("Failed to save agent profile:", err.message);
+      else if (!data || data.length === 0) console.error("Agent profile save affected 0 rows — likely blocked by a permission rule.");
     }, 800);
     return () => clearTimeout(timeout);
   }, [himself, himselfLoaded, profile]);
@@ -566,7 +572,13 @@ export default function App() {
     }
     if (profile) {
       const dbValue = ind === "Property" ? "Property" : "Financial Planning";
-      await supabase.from("profiles").update({ industry: dbValue }).eq("id", profile.id);
+      const { data, error: err } = await supabase
+        .from("profiles")
+        .update({ industry: dbValue })
+        .eq("id", profile.id)
+        .select();
+      if (err) console.error("Failed to save industry:", err.message);
+      else if (!data || data.length === 0) console.error("Industry save affected 0 rows — likely blocked by a permission rule.");
       setProfile((prev) => (prev ? { ...prev, industry: dbValue } : prev));
     }
   }
@@ -956,8 +968,13 @@ function ProfileScreen({ profile, himself, setHimself, himselfLoaded, industry, 
     setSaving(true);
     setError(null);
     try {
-      const { error: err } = await supabase.from("profiles").update({ agent_profile: data }).eq("id", profile.id);
+      const { data: rows, error: err } = await supabase
+        .from("profiles")
+        .update({ agent_profile: data })
+        .eq("id", profile.id)
+        .select();
       if (err) throw err;
+      if (!rows || rows.length === 0) throw new Error("Save didn't go through (0 rows affected) — please try again.");
       setHimself(data);
       setSaved(true);
     } catch (e) {
