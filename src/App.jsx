@@ -356,6 +356,191 @@ async function saveProfileFields(userId, fields) {
   return data[0];
 }
 
+const ARENA_RESPONSIVE_CSS = `
+  .arena-backdrop { display: none; }
+
+  .arena-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    font-size: 13px;
+    color: #6B7280;
+  }
+  .arena-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+  }
+  .arena-topbar-mobile-toggle { display: none; }
+  .arena-topbar-mobile-nav {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #E2DFD6;
+  }
+  .arena-topbar-mobile-nav.open { display: flex; }
+  .arena-topbar-mobile-nav button {
+    width: 100%;
+    text-align: left;
+    padding: 10px 8px;
+    border-radius: 8px;
+  }
+  .arena-topbar-mobile-nav button:hover { background: #F7F4EE; }
+
+  .arena-page-header {
+    background: #0A1628;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .arena-page-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .arena-page-header-title {
+    font-weight: 700;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .arena-history-layout {
+    display: flex;
+    height: calc(100vh - 53px);
+  }
+  .arena-history-list {
+    width: 320px;
+    border-right: 1px solid #E2DFD6;
+    overflow-y: auto;
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .arena-history-detail {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 28px;
+  }
+  .arena-history-back-mobile { display: none; }
+  .arena-history-transcript {
+    background: #fff;
+    border: 1px solid #E2DFD6;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+    max-height: 300px;
+    overflow-y: auto;
+    word-break: break-word;
+  }
+  .arena-notes-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 768px) {
+    .arena-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      z-index: 40;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+    }
+    .arena-sidebar.open { transform: translateX(0); }
+    .arena-backdrop.open {
+      display: block !important;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,22,40,0.5);
+      z-index: 39;
+    }
+    .arena-menu-toggle { display: flex !important; }
+    .arena-agent-grid { grid-template-columns: 1fr !important; }
+    .arena-setup-wrap { padding: 24px 14px 60px !important; }
+    .arena-profile-grid { grid-template-columns: 1fr !important; }
+    .arena-agent-summary {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 12px !important;
+    }
+    .arena-setup-header h1 { font-size: 26px !important; }
+
+    .arena-topbar {
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      gap: 8px;
+    }
+    .arena-topbar-user { display: none; }
+    .arena-topbar-desktop-nav { display: none !important; }
+    .arena-topbar-mobile-toggle {
+      display: flex !important;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #0A1628;
+      padding: 4px;
+      margin-left: auto;
+    }
+
+    .arena-page-header {
+      padding: 10px 14px;
+      flex-wrap: wrap;
+    }
+    .arena-page-header .arena-header-hide-mobile { display: none; }
+    .arena-page-header-title { font-size: 14px; }
+
+    .arena-history-layout {
+      flex-direction: column;
+      height: auto;
+      min-height: calc(100vh - 53px);
+    }
+    .arena-history-list {
+      width: 100% !important;
+      max-height: 42vh;
+      border-right: none;
+      border-bottom: 1px solid #E2DFD6;
+    }
+    .arena-history-layout.has-selection .arena-history-list { display: none; }
+    .arena-history-layout.has-selection .arena-history-detail {
+      min-height: calc(100vh - 53px);
+    }
+    .arena-history-detail { padding: 16px !important; }
+    .arena-history-back-mobile {
+      display: inline-flex !important;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: #0A1628;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 14px;
+    }
+    .arena-history-transcript { max-height: none; }
+    .arena-notes-row { flex-direction: column; }
+    .arena-notes-row button { width: 100%; padding: 12px !important; }
+  }
+`;
+
+function ResponsiveStyles() {
+  return <style>{ARENA_RESPONSIVE_CSS}</style>;
+}
+
 /* ============================== MAIN APP ============================== */
 
 export default function App() {
@@ -757,27 +942,37 @@ export default function App() {
   }
 
   if (view === "team" && profile?.role === "manager") {
-    return <SessionHistory profile={profile} scope="team" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />;
+    return (
+      <>
+        <ResponsiveStyles />
+        <SessionHistory profile={profile} scope="team" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />
+      </>
+    );
   }
 
   if (view === "history") {
     return (
-      <SessionHistory
-        profile={profile}
-        scope="mine"
-        onBack={() => setView("app")}
-        onSignOut={() => supabase.auth.signOut()}
-        onContinue={async (conv) => {
-          await loadConversationIntoState(conv);
-          setView("app");
-        }}
-      />
+      <>
+        <ResponsiveStyles />
+        <SessionHistory
+          profile={profile}
+          scope="mine"
+          onBack={() => setView("app")}
+          onSignOut={() => supabase.auth.signOut()}
+          onContinue={async (conv) => {
+            await loadConversationIntoState(conv);
+            setView("app");
+          }}
+        />
+      </>
     );
   }
 
   if (view === "profile") {
     return (
-      <ProfileScreen
+      <>
+        <ResponsiveStyles />
+        <ProfileScreen
         profile={profile}
         himself={himself}
         himselfLoaded={himselfLoaded}
@@ -786,27 +981,13 @@ export default function App() {
         onBack={() => setView("app")}
         onSignOut={() => supabase.auth.signOut()}
       />
+      </>
     );
   }
 
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <style>{`
-        .arena-backdrop { display: none; }
-        @media (max-width: 768px) {
-          .arena-sidebar {
-            position: fixed; top: 0; left: 0; height: 100vh; z-index: 40;
-            transform: translateX(-100%);
-          }
-          .arena-sidebar.open { transform: translateX(0); }
-          .arena-backdrop.open {
-            display: block !important; position: fixed; inset: 0; background: rgba(10,22,40,0.5); z-index: 39;
-          }
-          .arena-menu-toggle { display: flex !important; }
-          .arena-agent-grid { grid-template-columns: 1fr !important; }
-          .arena-setup-wrap { padding: 24px 14px 60px !important; }
-        }
-      `}</style>
+      <ResponsiveStyles />
       <div className={`arena-backdrop${sidebarOpen ? " open" : ""}`} onClick={() => setSidebarOpen(false)} />
       <div className={`arena-sidebar${sidebarOpen ? " open" : ""}`}>
         <Sidebar
@@ -1058,7 +1239,7 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
           <span style={{ color: "#9CA3AF" }}> — change this from the setup screen</span>
         </p>
 
-        <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="arena-profile-grid" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <Field label="Name">
             <input value={form.name} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
           </Field>
@@ -1125,8 +1306,20 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
 }
 
 function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, onMenuToggle }) {
+  const [navOpen, setNavOpen] = useState(false);
+
+  function navAction(action) {
+    setNavOpen(false);
+    action();
+  }
+
+  const navButtonStyle = {
+    background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600,
+    display: "flex", alignItems: "center", gap: 4,
+  };
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "14px 24px", fontSize: 13, color: "#6B7280" }}>
+    <div className="arena-topbar">
       <button
         onClick={onMenuToggle}
         className="arena-menu-toggle"
@@ -1134,22 +1327,49 @@ function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, 
       >
         <Menu size={20} />
       </button>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
-      {profile && <span>{profile.full_name || profile.email} {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}>· Manager</span>}</span>}
-      <button onClick={onProfileView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-        Profile
-      </button>
-      <button onClick={onHistoryView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-        My History
-      </button>
-      {profile?.role === "manager" && (
-        <button onClick={onTeamView} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-          <Users size={14} /> Team Dashboard
+      <div className="arena-topbar-actions arena-topbar-desktop-nav">
+        {profile && (
+          <span className="arena-topbar-user">
+            {profile.full_name || profile.email}
+            {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
+          </span>
+        )}
+        <button onClick={onProfileView} style={navButtonStyle}>Profile</button>
+        <button onClick={onHistoryView} style={navButtonStyle}>My History</button>
+        {profile?.role === "manager" && (
+          <button onClick={onTeamView} style={navButtonStyle}>
+            <Users size={14} /> Team Dashboard
+          </button>
+        )}
+        <button onClick={onSignOut} style={navButtonStyle}>
+          <LogOut size={14} /> Sign Out
         </button>
-      )}
-      <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-        <LogOut size={14} /> Sign Out
+      </div>
+      <button
+        type="button"
+        className="arena-topbar-mobile-toggle"
+        onClick={() => setNavOpen((open) => !open)}
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
       </button>
+      <div className={`arena-topbar-mobile-nav${navOpen ? " open" : ""}`}>
+        {profile && (
+          <div style={{ fontSize: 12, color: "#6B7280", padding: "4px 8px 8px" }}>
+            {profile.full_name || profile.email}
+            {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
+          </div>
+        )}
+        <button onClick={() => navAction(onProfileView)} style={navButtonStyle}>Profile</button>
+        <button onClick={() => navAction(onHistoryView)} style={navButtonStyle}>My History</button>
+        {profile?.role === "manager" && (
+          <button onClick={() => navAction(onTeamView)} style={navButtonStyle}>
+            <Users size={14} /> Team Dashboard
+          </button>
+        )}
+        <button onClick={() => navAction(onSignOut)} style={navButtonStyle}>
+          <LogOut size={14} /> Sign Out
+        </button>
       </div>
     </div>
   );
@@ -1166,7 +1386,7 @@ function SetupScreen({
 
   return (
     <div className="arena-setup-wrap" style={{ maxWidth: 920, margin: "0 auto", padding: "40px 24px 80px" }}>
-      <header style={{ textAlign: "center", marginBottom: 40 }}>
+      <header className="arena-setup-header" style={{ textAlign: "center", marginBottom: 40 }}>
         <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: "50%", border: `2px solid ${GOLD}`, marginBottom: 14 }}>
           <div style={{ width: 34, height: 34, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
         </div>
@@ -1179,7 +1399,7 @@ function SetupScreen({
 
       {/* Himself */}
       <SectionLabel n="1" title="Your Agent Profile" />
-      <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="arena-agent-summary" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{himself.name || "(no name set)"}</div>
           <div style={{ fontSize: 13, color: "#6B7280", marginTop: 3 }}>
@@ -1744,8 +1964,8 @@ function NotesPanel({ onClose, conversationId, profile, clientName }) {
 function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null); // selected conversation id
-  const [detail, setDetail] = useState(null); // { messages, report, notes }
+  const [selected, setSelected] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -1769,7 +1989,6 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
     setSelected(conv.id);
     setDetail(null);
     const [{ data: messages }, { data: reports }, { data: notes }] = await Promise.all([
-
       supabase.from("messages").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: true }),
       supabase.from("coaching_reports").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(1),
       supabase.from("progress_notes").select("*, author:author_id(full_name, email)").eq("conversation_id", conv.id).order("created_at", { ascending: false }),
@@ -1792,26 +2011,30 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
     setSavingNote(false);
   }
 
+  function backToSessionList() {
+    setSelected(null);
+    setDetail(null);
+  }
+
   const selectedConv = conversations.find((c) => c.id === selected);
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
-      <div style={{ background: NAVY, color: "#fff", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+      <div className="arena-page-header">
+        <div className="arena-page-header-left">
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13, flexShrink: 0 }}>
             <ArrowLeft size={15} /> Back to app
           </button>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{scope === "mine" ? "My History" : "Team Dashboard"}</div>
+          <div className="arena-header-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
+          <div className="arena-page-header-title">{scope === "mine" ? "My History" : "Team Dashboard"}</div>
         </div>
-        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
           <LogOut size={14} /> Sign Out
         </button>
       </div>
 
-      <div style={{ display: "flex", height: "calc(100vh - 53px)" }}>
-        {/* Conversation list */}
-        <div style={{ width: 320, borderRight: "1px solid #E2DFD6", overflowY: "auto", background: "#fff" }}>
+      <div className={`arena-history-layout${selected ? " has-selection" : ""}`}>
+        <div className="arena-history-list">
           {loading ? (
             <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>Loading...</div>
           ) : conversations.length === 0 ? (
@@ -1849,15 +2072,17 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
           )}
         </div>
 
-        {/* Detail panel */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+        <div className="arena-history-detail">
           {!selectedConv ? (
-            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Select a session on the left to review it.</div>
+            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Select a session to review it.</div>
           ) : !detail ? (
             <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading session...</div>
           ) : (
             <div style={{ maxWidth: 700 }}>
-              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, marginBottom: 4 }}>
+              <button type="button" className="arena-history-back-mobile" onClick={backToSessionList}>
+                <ArrowLeft size={15} /> Back to sessions
+              </button>
+              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, marginBottom: 4, wordBreak: "break-word" }}>
                 {selectedConv.trainee?.full_name || selectedConv.trainee?.email} — {selectedConv.client_name}
               </h2>
               <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
@@ -1865,7 +2090,7 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
               </p>
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Transcript</div>
-              <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, maxHeight: 300, overflowY: "auto" }}>
+              <div className="arena-history-transcript">
                 {detail.messages.length === 0 ? (
                   <div style={{ fontSize: 13, color: "#9CA3AF" }}>No messages recorded.</div>
                 ) : (
@@ -1897,7 +2122,7 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
               )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Progress Notes</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <div className="arena-notes-row">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
