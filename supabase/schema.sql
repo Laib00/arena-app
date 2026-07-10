@@ -180,10 +180,13 @@ create table if not exists public.coaching_reports (
   overall text,
   strengths text,
   areas_to_improve text,
+  client_fit text,
   key_recommendation text,
   raw_text text,
   created_at timestamptz not null default now()
 );
+
+alter table public.coaching_reports add column if not exists client_fit text;
 
 alter table public.coaching_reports enable row level security;
 
