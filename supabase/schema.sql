@@ -187,6 +187,9 @@ create table if not exists public.coaching_reports (
 );
 
 alter table public.coaching_reports add column if not exists client_fit text;
+alter table public.coaching_reports add column if not exists client_feedback text;
+alter table public.coaching_reports add column if not exists reflection text;
+alter table public.coaching_reports add column if not exists facts text;
 
 alter table public.coaching_reports enable row level security;
 

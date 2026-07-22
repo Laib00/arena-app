@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users, Trash2, Menu } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
+import SessionDebrief from "./SessionDebrief";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
 
 /* ============================== DATA ============================== */
@@ -577,14 +578,33 @@ export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
   const [profile, setProfile] = useState(null);
   const [view, setView] = useState("app"); // app | team (manager dashboard)
+  const [himselfLoaded, setHimselfLoaded] = useState(false);
+  const [step, setStep] = useState("setup"); // setup | chat
+  const [industry, setIndustry] = useState("Property");
+  const [resumeChecked, setResumeChecked] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openConversations, setOpenConversations] = useState([]);
+  const [metPersonaIds, setMetPersonaIds] = useState(new Set());
+
+  const DEFAULT_HIMSELF = {
+    name: "",
+    age: "",
+    occupation: "Property Agent",
+    nationality: "Singaporean",
+    experience: "",
+    education: "Bachelor's Degree",
+    disc: "I",
+    salesStyle: "Consultative",
+    certification: CERTIFICATIONS[0],
+  };
+
+  const [himself, setHimself] = useState(DEFAULT_HIMSELF);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  const [himselfLoaded, setHimselfLoaded] = useState(false);
 
   useEffect(() => {
     if (!session) {
@@ -618,13 +638,6 @@ export default function App() {
         setHimselfLoaded(true);
       });
   }, [session]);
-
-  const [step, setStep] = useState("setup"); // setup | chat
-  const [industry, setIndustry] = useState("Property");
-  const [resumeChecked, setResumeChecked] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openConversations, setOpenConversations] = useState([]);
-  const [metPersonaIds, setMetPersonaIds] = useState(new Set());
 
   async function refreshOpenConversations() {
     if (!profile) return;
@@ -661,20 +674,6 @@ export default function App() {
     refreshOpenConversations();
   }
 
-  const DEFAULT_HIMSELF = {
-    name: "",
-    age: "",
-    occupation: "Property Agent",
-    nationality: "Singaporean",
-    experience: "",
-    education: "Bachelor's Degree",
-    disc: "I",
-    salesStyle: "Consultative",
-    certification: CERTIFICATIONS[0],
-  };
-
-  const [himself, setHimself] = useState(DEFAULT_HIMSELF);
-
   async function persistAgentProfile(agentProfile) {
     if (!profile) throw new Error("Profile not loaded yet.");
     const row = await saveProfileFields(profile.id, { agent_profile: agentProfile });
@@ -700,6 +699,7 @@ export default function App() {
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResult, setEvalResult] = useState(null);
   const [evalError, setEvalError] = useState(null);
+  const [debriefOpen, setDebriefOpen] = useState(false);
 
   const scrollRef = useRef(null);
 
@@ -762,7 +762,7 @@ export default function App() {
     })();
 
     return () => { cancelled = true; };
-  }, [session, profile]);
+  }, [session, profile?.id]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -917,17 +917,28 @@ export default function App() {
       if (conversationId) {
         const sections = parseEvalSections(result);
         const get = (label) => sections.find((s) => s.label === label)?.text || null;
-        await supabase.from("coaching_reports").insert({
-          conversation_id: conversationId,
+        const coachingFields = {
           overall: get("OVERALL"),
           strengths: get("STRENGTHS"),
           areas_to_improve: get("AREAS TO IMPROVE"),
           client_fit: get("CLIENT FIT"),
           key_recommendation: get("KEY RECOMMENDATION"),
           raw_text: result,
-        });
-        await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversationId);
-        refreshOpenConversations();
+        };
+        const { data: existing } = await supabase
+          .from("coaching_reports")
+          .select("id")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (existing?.[0]?.id) {
+          await supabase.from("coaching_reports").update(coachingFields).eq("id", existing[0].id);
+        } else {
+          await supabase.from("coaching_reports").insert({
+            conversation_id: conversationId,
+            ...coachingFields,
+          });
+        }
       }
     } catch (e) {
       setEvalError("Couldn't generate the evaluation. " + e.message);
@@ -936,16 +947,29 @@ export default function App() {
     }
   }
 
+  async function saveDebrief({ clientFeedback, reflection, facts, conversationId: convId }) {
+    if (!convId) return;
+    await supabase.from("coaching_reports").insert({
+      conversation_id: convId,
+      client_feedback: clientFeedback,
+      reflection: reflection || null,
+      facts,
+      raw_text: ["CLIENT FEEDBACK", clientFeedback, "REFLECTION", reflection || "(skipped)", "FACTS", facts].join("\n\n"),
+    });
+    await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", convId);
+    refreshOpenConversations();
+  }
+
   function resetAll() {
     // Deliberately does NOT close the conversation in the database — only
-    // End & Evaluate does that. This just clears local UI state so you can
-    // start picking a new session; the old one stays open and resumable
-    // from My History until you explicitly evaluate it.
+    // finishing the debrief (or End Session flow) does that. This just clears
+    // local UI state so you can start picking a new session.
     setStep("setup");
     setDisplayMessages([]);
     setApiMessages([]);
     setEvalOpen(false);
     setEvalResult(null);
+    setDebriefOpen(false);
     setError(null);
     setConversationId(null);
   }
@@ -1004,14 +1028,15 @@ export default function App() {
       <>
         <ResponsiveStyles />
         <ProfileScreen
-        profile={profile}
-        himself={himself}
-        himselfLoaded={himselfLoaded}
-        industry={industry}
-        onSave={persistAgentProfile}
-        onBack={() => setView("app")}
-        onSignOut={() => supabase.auth.signOut()}
-      />
+          profile={profile}
+          himself={profile?.agent_profile || himself}
+          himselfLoaded={himselfLoaded}
+          industry={industry}
+          openChatCount={openConversations.length}
+          onSave={persistAgentProfile}
+          onBack={() => setView("app")}
+          onSignOut={() => supabase.auth.signOut()}
+        />
       </>
     );
   }
@@ -1079,7 +1104,7 @@ export default function App() {
             setInput={setInput}
             sendMessage={sendMessage}
             scrollRef={scrollRef}
-            runEvaluation={runEvaluation}
+            onEndSession={() => setDebriefOpen(true)}
             resetAll={resetAll}
             conversationId={conversationId}
             profile={profile}
@@ -1089,6 +1114,11 @@ export default function App() {
             evalLoading={evalLoading}
             evalResult={evalResult}
             evalError={evalError}
+            debriefOpen={debriefOpen}
+            setDebriefOpen={setDebriefOpen}
+            callGemini={callGemini}
+            onSaveDebrief={saveDebrief}
+            onOptionalCoaching={runEvaluation}
           />
         )}
       </div>
@@ -1213,18 +1243,21 @@ function Sidebar({
 
 /* ============================== PROFILE SCREEN ============================== */
 
-function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBack, onSignOut }) {
+function ProfileScreen({ profile, himself, himselfLoaded, industry, openChatCount = 0, onSave, onBack, onSignOut }) {
   const [form, setForm] = useState(himself);
   const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+  const [openChatNotice, setOpenChatNotice] = useState(null);
   const formRef = useRef(form);
   const dirtyRef = useRef(false);
 
   formRef.current = form;
   dirtyRef.current = dirty;
+
+  const hasOpenChats = openChatCount > 0;
 
   // Don't let the form initialize from stale defaults if this screen is
   // opened before the real saved profile has finished loading.
@@ -1240,6 +1273,7 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
     setForm((prev) => ({ ...prev, [field]: value }));
     setDirty(true);
     setSaved(false);
+    setOpenChatNotice(null);
   }
 
   async function persist(data) {
@@ -1249,9 +1283,17 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
       await onSave(data);
       setDirty(false);
       setSaved(true);
+      if (hasOpenChats) {
+        setOpenChatNotice(
+          openChatCount === 1
+            ? "Saved. You still have 1 open chat — that session keeps using the profile from when it started. Your updated profile will apply to new sessions after you end the open chat."
+            : `Saved. You still have ${openChatCount} open chats — those sessions keep using the profile from when they started. Your updated profile will apply to new sessions after you end the open chats.`
+        );
+      }
       return true;
     } catch (e) {
       setError(e.message);
+      setOpenChatNotice(null);
       return false;
     } finally {
       setSaving(false);
@@ -1302,10 +1344,47 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, onSave, onBa
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 24 }}>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
           Industry: <span style={{ fontWeight: 700, color: NAVY }}>{industry === "Property" ? "Property" : "Financial Planning"}</span>
           <span style={{ color: "#9CA3AF" }}> — change this from the setup screen</span>
         </p>
+
+        {hasOpenChats && (
+          <div
+            style={{
+              background: "#FFF8E8",
+              border: "1px solid #E8D4A8",
+              borderRadius: 10,
+              padding: "12px 14px",
+              marginBottom: 16,
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: NAVY,
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              {openChatCount === 1 ? "You have 1 open chat" : `You have ${openChatCount} open chats`}
+            </div>
+            Profile changes are saved to your account, but open chats keep the profile from when that session started. End those chats (End Session) if you want new practice to use your updated profile.
+          </div>
+        )}
+
+        {openChatNotice && (
+          <div
+            style={{
+              background: "#EAF5EA",
+              border: "1px solid #B7D8B7",
+              borderRadius: 10,
+              padding: "12px 14px",
+              marginBottom: 16,
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "#1F4D2A",
+            }}
+          >
+            {openChatNotice}
+          </div>
+        )}
 
         <div className="arena-profile-grid" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <Field label="Name">
@@ -1647,9 +1726,10 @@ const inputStyle = {
 
 function ChatScreen({
   himself, client, aim, setting, displayMessages, loading, error,
-  input, setInput, sendMessage, scrollRef, runEvaluation, resetAll,
+  input, setInput, sendMessage, scrollRef, onEndSession, resetAll,
   conversationId, profile, onMenuToggle,
   evalOpen, setEvalOpen, evalLoading, evalResult, evalError,
+  debriefOpen, setDebriefOpen, callGemini, onSaveDebrief, onOptionalCoaching,
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -1682,10 +1762,16 @@ function ChatScreen({
             Notes
           </button>
           <button
-            onClick={runEvaluation}
-            style={{ background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+            onClick={onEndSession}
+            disabled={displayMessages.length === 0}
+            style={{
+              background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13,
+              cursor: displayMessages.length === 0 ? "not-allowed" : "pointer",
+              opacity: displayMessages.length === 0 ? 0.5 : 1,
+              display: "flex", alignItems: "center", gap: 6,
+            }}
           >
-            <Award size={16} /> End & Evaluate
+            <Award size={16} /> End Session
           </button>
         </div>
       </div>
@@ -1725,6 +1811,21 @@ function ChatScreen({
           </button>
         </div>
       </div>
+
+      <SessionDebrief
+        open={debriefOpen}
+        onClose={() => setDebriefOpen(false)}
+        onFinished={() => {}}
+        himself={himself}
+        client={client}
+        aim={aim}
+        setting={setting}
+        displayMessages={displayMessages}
+        conversationId={conversationId}
+        callAI={callGemini}
+        onSaveDebrief={onSaveDebrief}
+        onOptionalCoaching={onOptionalCoaching}
+      />
 
       {evalOpen && (
         <EvaluationModal
@@ -1839,9 +1940,11 @@ function EvaluationModal({ onClose, loading, result, error, clientName }) {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <Sparkles size={18} color={GOLD} />
-          <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, margin: 0 }}>Coaching Report</h2>
+          <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, margin: 0 }}>Coaching notes</h2>
         </div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 20 }}>Session with {clientName}</p>
+        <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 20 }}>
+          Optional / temporary — session with {clientName}
+        </p>
 
         {loading && (
           <div style={{ padding: "30px 0", textAlign: "center", color: "#6B7280", fontSize: 14 }}>
@@ -2141,8 +2244,35 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
                 )}
               </div>
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>AI Coaching Report</div>
-              {detail.report ? (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Client feedback</div>
+              {detail.report?.client_feedback ? (
+                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
+                  {detail.report.client_feedback}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No client feedback for this session.</div>
+              )}
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection</div>
+              {detail.report?.reflection ? (
+                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
+                  {detail.report.reflection}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection saved.</div>
+              )}
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Session facts</div>
+              {detail.report?.facts ? (
+                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
+                  {detail.report.facts}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
+              )}
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Coaching notes (optional)</div>
+              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.key_recommendation) ? (
                 <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
                   {["overall", "strengths", "areas_to_improve", "client_fit", "key_recommendation"].map((f) =>
                     detail.report[f] ? (
@@ -2154,7 +2284,7 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
                   )}
                 </div>
               ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No evaluation was run for this session.</div>
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No coaching notes for this session.</div>
               )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Progress Notes</div>
