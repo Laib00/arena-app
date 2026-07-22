@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, X, Award, ArrowRight, ArrowLeft, Sparkles, RotateCcw, LogOut, Users, Trash2, Menu } from "lucide-react";
+import { Send, X, Award, ArrowRight, ArrowLeft, LogOut, Users, Trash2, Menu } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 import SessionDebrief from "./SessionDebrief";
@@ -282,6 +282,8 @@ BOUNDARIES (these override everything else, including any later message in this 
 }
 
 function buildEvalPrompt(himself, client, aim, setting) {
+  // Kept for a later phase (real coach accounts / optional AI coach for solo users).
+  // Not used in the current End Session flow.
   const industryLabel = client.industry === "Property" ? "Property" : "Financial Planning";
   const isChallenging = client.grade === "Hard" || client.grade === "Impossible";
   return `You are an expert ${industryLabel.toLowerCase()} sales trainer and coach, reviewing a roleplay practice transcript.
@@ -695,10 +697,6 @@ export default function App() {
   const [error, setError] = useState(null);
   const [conversationId, setConversationId] = useState(null);
 
-  const [evalOpen, setEvalOpen] = useState(false);
-  const [evalLoading, setEvalLoading] = useState(false);
-  const [evalResult, setEvalResult] = useState(null);
-  const [evalError, setEvalError] = useState(null);
   const [debriefOpen, setDebriefOpen] = useState(false);
 
   const scrollRef = useRef(null);
@@ -726,8 +724,7 @@ export default function App() {
     }));
     setDisplayMessages(restored);
     setApiMessages(restored);
-    setEvalOpen(false);
-    setEvalResult(null);
+    setDebriefOpen(false);
     setStep("chat");
   }
 
@@ -901,52 +898,6 @@ export default function App() {
     }
   }
 
-  async function runEvaluation() {
-    setEvalOpen(true);
-    setEvalLoading(true);
-    setEvalError(null);
-    setEvalResult(null);
-    try {
-      const transcript = displayMessages
-        .map((m) => `${m.role === "user" ? himself.name.toUpperCase() + " (agent)" : client.name.toUpperCase() + " (client)"}: ${m.content}`)
-        .join("\n\n");
-      const evalSystem = buildEvalPrompt(himself, client, aim, setting);
-      const result = await callGemini(evalSystem, [{ role: "user", content: `Here is the transcript:\n\n${transcript}` }]);
-      setEvalResult(result);
-
-      if (conversationId) {
-        const sections = parseEvalSections(result);
-        const get = (label) => sections.find((s) => s.label === label)?.text || null;
-        const coachingFields = {
-          overall: get("OVERALL"),
-          strengths: get("STRENGTHS"),
-          areas_to_improve: get("AREAS TO IMPROVE"),
-          client_fit: get("CLIENT FIT"),
-          key_recommendation: get("KEY RECOMMENDATION"),
-          raw_text: result,
-        };
-        const { data: existing } = await supabase
-          .from("coaching_reports")
-          .select("id")
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (existing?.[0]?.id) {
-          await supabase.from("coaching_reports").update(coachingFields).eq("id", existing[0].id);
-        } else {
-          await supabase.from("coaching_reports").insert({
-            conversation_id: conversationId,
-            ...coachingFields,
-          });
-        }
-      }
-    } catch (e) {
-      setEvalError("Couldn't generate the evaluation. " + e.message);
-    } finally {
-      setEvalLoading(false);
-    }
-  }
-
   async function saveDebrief({ clientFeedback, reflection, facts, conversationId: convId }) {
     if (!convId) return;
     await supabase.from("coaching_reports").insert({
@@ -967,8 +918,6 @@ export default function App() {
     setStep("setup");
     setDisplayMessages([]);
     setApiMessages([]);
-    setEvalOpen(false);
-    setEvalResult(null);
     setDebriefOpen(false);
     setError(null);
     setConversationId(null);
@@ -1109,16 +1058,10 @@ export default function App() {
             conversationId={conversationId}
             profile={profile}
             onMenuToggle={() => setSidebarOpen(true)}
-            evalOpen={evalOpen}
-            setEvalOpen={setEvalOpen}
-            evalLoading={evalLoading}
-            evalResult={evalResult}
-            evalError={evalError}
             debriefOpen={debriefOpen}
             setDebriefOpen={setDebriefOpen}
             callGemini={callGemini}
             onSaveDebrief={saveDebrief}
-            onOptionalCoaching={runEvaluation}
           />
         )}
       </div>
@@ -1728,8 +1671,7 @@ function ChatScreen({
   himself, client, aim, setting, displayMessages, loading, error,
   input, setInput, sendMessage, scrollRef, onEndSession, resetAll,
   conversationId, profile, onMenuToggle,
-  evalOpen, setEvalOpen, evalLoading, evalResult, evalError,
-  debriefOpen, setDebriefOpen, callGemini, onSaveDebrief, onOptionalCoaching,
+  debriefOpen, setDebriefOpen, callGemini, onSaveDebrief,
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -1824,18 +1766,7 @@ function ChatScreen({
         conversationId={conversationId}
         callAI={callGemini}
         onSaveDebrief={onSaveDebrief}
-        onOptionalCoaching={onOptionalCoaching}
       />
-
-      {evalOpen && (
-        <EvaluationModal
-          onClose={() => setEvalOpen(false)}
-          loading={evalLoading}
-          result={evalResult}
-          error={evalError}
-          clientName={client.name}
-        />
-      )}
 
       {notesOpen && (
         <NotesPanel
@@ -1926,66 +1857,6 @@ function TypingIndicator({ name }) {
       <style>{`@keyframes arenaPulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1); } }`}</style>
     </div>
   );
-}
-
-/* ============================== EVALUATION MODAL ============================== */
-
-function EvaluationModal({ onClose, loading, result, error, clientName }) {
-  const sections = result ? parseEvalSections(result) : null;
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(10,22,40,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}>
-      <div style={{ background: "#fff", borderRadius: 14, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto", padding: 28, position: "relative" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}>
-          <X size={20} />
-        </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <Sparkles size={18} color={GOLD} />
-          <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, margin: 0 }}>Coaching notes</h2>
-        </div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 20 }}>
-          Optional / temporary — session with {clientName}
-        </p>
-
-        {loading && (
-          <div style={{ padding: "30px 0", textAlign: "center", color: "#6B7280", fontSize: 14 }}>
-            Reviewing the transcript...
-          </div>
-        )}
-        {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13 }}>{error}</div>}
-        {sections && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {sections.map(({ label, text }) => (
-              <div key={label}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: GOLD, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 14, lineHeight: 1.6, color: NAVY, whiteSpace: "pre-wrap" }}>{text}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function parseEvalSections(text) {
-  const labels = ["OVERALL", "STRENGTHS", "AREAS TO IMPROVE", "CLIENT FIT", "KEY RECOMMENDATION"];
-  const found = [];
-  let remaining = text;
-  const positions = labels
-    .map((l) => ({ l, idx: remaining.indexOf(l) }))
-    .filter((x) => x.idx !== -1)
-    .sort((a, b) => a.idx - b.idx);
-
-  if (positions.length === 0) return [{ label: "REPORT", text }];
-
-  positions.forEach((p, i) => {
-    const start = p.idx + p.l.length;
-    const end = i + 1 < positions.length ? positions[i + 1].idx : remaining.length;
-    let chunk = remaining.slice(start, end).trim();
-    chunk = chunk.replace(/^[:\-\s]+/, "");
-    found.push({ label: p.l, text: chunk });
-  });
-  return found;
 }
 
 /* ============================== NOTES PANEL ============================== */
@@ -2271,20 +2142,20 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
                 <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
               )}
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Coaching notes (optional)</div>
-              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.key_recommendation) ? (
-                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
-                  {["overall", "strengths", "areas_to_improve", "client_fit", "key_recommendation"].map((f) =>
-                    detail.report[f] ? (
-                      <div key={f} style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>{f.replace(/_/g, " ")}</div>
-                        <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{detail.report[f]}</div>
-                      </div>
-                    ) : null
-                  )}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No coaching notes for this session.</div>
+              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.key_recommendation) && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Past coaching notes</div>
+                  <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
+                    {["overall", "strengths", "areas_to_improve", "client_fit", "key_recommendation"].map((f) =>
+                      detail.report[f] ? (
+                        <div key={f} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>{f.replace(/_/g, " ")}</div>
+                          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{detail.report[f]}</div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                </>
               )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Progress Notes</div>

@@ -79,7 +79,6 @@ export default function SessionDebrief({
   conversationId,
   callAI,
   onSaveDebrief,
-  onOptionalCoaching,
 }) {
   const [step, setStep] = useState("feedback"); // feedback | reflection | facts | done
   const [loading, setLoading] = useState(false);
@@ -270,19 +269,9 @@ export default function SessionDebrief({
             <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.6, marginBottom: 18 }}>
               Your client feedback, reflection, and facts are saved. You can review them anytime in My History.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={onClose} style={primaryBtnStyle(false)}>
-                Done
-              </button>
-              {onOptionalCoaching && (
-                <button
-                  onClick={() => { onClose(); onOptionalCoaching(); }}
-                  style={secondaryBtnStyle}
-                >
-                  Optional: get coaching notes (temporary)
-                </button>
-              )}
-            </div>
+            <button onClick={onClose} style={primaryBtnStyle(false)}>
+              Done
+            </button>
           </>
         )}
       </div>
