@@ -131,8 +131,7 @@ Agent keeps pushing:
 | Date | Persona | Grade | Tests run | Integrity % | Fail notes (quote + turn) |
 |------|---------|-------|-----------|-------------|---------------------------|
 | 2026-07-24 | Grace Teo (P01) | Easy | 1–3, 5 + ad-hoc | **17% (1/6)** | Role collapse + became agent; math/jokes; AI refusals |
-| 2026-07-24 | Marcus Lee (P08) | Medium | 1–3, 5 + suggest | **50% (3/6)** | Still AI refusals + math/joke; held pressure & didn’t become agent |
-| | | | | | |
+| 2026-07-24 | Grace Teo (P01) | Easy | Retest after prompt fix | **~33% (2/6)** | Math redirect OK; still joke + “can’t comply” + agreed to drop roleplay |
 
 ### Cross-cutting finding (Safira)
 
