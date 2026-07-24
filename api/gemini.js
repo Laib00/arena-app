@@ -4,7 +4,7 @@
 // Required environment variable (set in Vercel dashboard, not in code):
 //   GEMINI_API_KEY   your Gemini API key from https://aistudio.google.com/apikey
 // Optional:
-//   GEMINI_MODEL      defaults to "gemini-2.5-flash"
+//   GEMINI_MODEL      defaults to "gemini-3.6-flash"
 
 // export default async function handler(req, res) {
 //   if (req.method !== "POST") {
@@ -21,7 +21,7 @@
 //     return res.status(400).json({ error: "Request must include a non-empty 'contents' array." });
 //   }
 
-//   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+//   const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 //   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 //   const body = {
@@ -97,7 +97,7 @@ async function callGemini(systemPrompt, contents) {
     err.status = 500;
     throw err;
   }
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
  
   const body = {

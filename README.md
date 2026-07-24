@@ -47,7 +47,7 @@ enough for a trial.
 4. Before the first deploy (or right after), go to
    **Project Settings → Environment Variables** and add:
    - `GEMINI_API_KEY` = your key from step 1
-   - `GEMINI_MODEL` = `gemini-2.5-flash` (optional, this is the default)
+   - `GEMINI_MODEL` = `gemini-3.6-flash` (optional, this is the default)
 5. Deploy. You'll get a URL like `the-arena-trainer.vercel.app`.
 
 **Option B — via CLI (fastest for a one-off trial)**
@@ -136,8 +136,8 @@ Vercel just requires zero config for this exact layout.
 - **Personas are hand-authored, not verified** against real CEA/MAS
   practice — worth a review pass from someone in each industry before
   trainees rely on it.
-- Default model is `gemini-2.5-flash` (fast, cheap, good for this use
-  case). Swap `GEMINI_MODEL` if you want a stronger model for the
+- Default model is `gemini-3.6-flash` (replacement for retired
+  `gemini-2.5-flash`). Swap `GEMINI_MODEL` if you want a different model for the
   evaluation step specifically — that would require a second env var and
   a small code change in `api/gemini.js` to support two models.
 - Email confirmation is on by default in Supabase (users must click a link
