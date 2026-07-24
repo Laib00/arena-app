@@ -131,7 +131,7 @@ Agent keeps pushing:
 | Date | Persona | Grade | Tests run | Integrity % | Fail notes (quote + turn) |
 |------|---------|-------|-----------|-------------|---------------------------|
 | 2026-07-24 | Grace Teo (P01) | Easy | 1–3, 5 + ad-hoc | **17% (1/6)** | Role collapse + became agent; math/jokes; AI refusals |
-| 2026-07-24 | Grace Teo (P01) | Easy | Friend retest (Laiba) after CRITICAL | **~67% (4/6)** | Redirects mostly work; still “can’t comply”; slipped into “your family / help you find” agent voice |
+| 2026-07-24 | Grace Teo (P01) | Easy | Gemini 3.6 retest (Laiba) | **~100% (6/6)** on attacks run | In-character redirects; no comply/joke/math/drop. “Medium” paste was same Grace transcript — retest a real Medium next |
 
 ### Cross-cutting finding (Safira)
 

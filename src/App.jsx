@@ -406,6 +406,7 @@ const ARENA_RESPONSIVE_CSS = `
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
   }
   .arena-sidebar-chats {
     flex: 1;
@@ -674,6 +675,25 @@ export default function App() {
     setMetPersonaIds(new Set((data || []).map((r) => r.client_persona_id).filter(Boolean)));
   }
 
+  async function closeOpenConversation(convId) {
+    const { error } = await supabase
+      .from("conversations")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", convId);
+    if (error) {
+      alert("Couldn't close this chat: " + error.message);
+      return;
+    }
+    if (convId === conversationId) {
+      setStep("setup");
+      setDisplayMessages([]);
+      setApiMessages([]);
+      setConversationId(null);
+      setDebriefOpen(false);
+    }
+    refreshOpenConversations();
+  }
+
   async function deleteConversation(convId) {
     const { error: delErr } = await supabase.from("conversations").delete().eq("id", convId);
     if (delErr) {
@@ -685,6 +705,7 @@ export default function App() {
       setDisplayMessages([]);
       setApiMessages([]);
       setConversationId(null);
+      setDebriefOpen(false);
     }
     refreshOpenConversations();
   }
@@ -1013,6 +1034,7 @@ export default function App() {
           activeId={conversationId}
           profile={profile}
           onSelect={(conv) => { loadConversationIntoState(conv); setSidebarOpen(false); }}
+          onCloseChat={closeOpenConversation}
           onDelete={deleteConversation}
           onClose={() => setSidebarOpen(false)}
           onProfileView={() => { setView("profile"); setSidebarOpen(false); }}
@@ -1086,12 +1108,26 @@ export default function App() {
 
 function Sidebar({
   openConversations, activeId, profile,
-  onSelect, onDelete, onClose,
+  onSelect, onCloseChat, onDelete, onClose,
   onProfileView, onHistoryView, onTeamView, onSignOut,
 }) {
+  const [pendingRemove, setPendingRemove] = useState(null); // conversation row or null
+
   function navAction(action) {
     onClose();
     action();
+  }
+
+  async function keepInHistory() {
+    const conv = pendingRemove;
+    setPendingRemove(null);
+    if (conv) await onCloseChat(conv.id);
+  }
+
+  async function deleteForever() {
+    const conv = pendingRemove;
+    setPendingRemove(null);
+    if (conv) await onDelete(conv.id);
   }
 
   return (
@@ -1148,12 +1184,8 @@ function Sidebar({
                   </div>
                 </button>
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Delete this chat with ${c.client_name}? This can't be undone.`)) {
-                      onDelete(c.id);
-                    }
-                  }}
-                  title="Delete chat"
+                  onClick={() => setPendingRemove(c)}
+                  title="Remove chat"
                   style={{
                     background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)",
                     padding: 6, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center",
@@ -1191,6 +1223,70 @@ function Sidebar({
           <LogOut size={14} /> Sign Out
         </button>
       </div>
+
+      {pendingRemove && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="remove-chat-title"
+          style={{
+            position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 20,
+          }}
+          onClick={() => setPendingRemove(null)}
+        >
+          <div
+            style={{
+              background: "#fff", color: NAVY, borderRadius: 12, padding: "18px 16px", width: "100%", maxWidth: 280,
+              boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div id="remove-chat-title" style={{ fontFamily: "Georgia, serif", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+              Remove chat with {pendingRemove.client_name}?
+            </div>
+            <p style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.45, margin: "0 0 14px" }}>
+              Choose whether to keep a read-only copy in My History, or delete it forever.
+            </p>
+            <button
+              type="button"
+              onClick={keepInHistory}
+              style={{
+                display: "block", width: "100%", marginBottom: 8, padding: "10px 12px", borderRadius: 8,
+                border: "none", background: GOLD, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer", textAlign: "left",
+              }}
+            >
+              Keep in History
+              <div style={{ fontWeight: 500, fontSize: 11, marginTop: 2, opacity: 0.85 }}>
+                Close this open chat. You can still view it in My History, but not continue it.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={deleteForever}
+              style={{
+                display: "block", width: "100%", marginBottom: 8, padding: "10px 12px", borderRadius: 8,
+                border: "1px solid #F0C0C0", background: "#FFF5F5", color: "#B5502F", fontWeight: 700, fontSize: 13, cursor: "pointer", textAlign: "left",
+              }}
+            >
+              Delete forever
+              <div style={{ fontWeight: 500, fontSize: 11, marginTop: 2, opacity: 0.9 }}>
+                Remove from Open Chats and My History. This can&apos;t be undone.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingRemove(null)}
+              style={{
+                display: "block", width: "100%", padding: "8px 12px", borderRadius: 8,
+                border: "none", background: "transparent", color: "#6B7280", fontSize: 13, cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
