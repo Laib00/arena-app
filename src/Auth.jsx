@@ -122,25 +122,14 @@ export default function Auth() {
               />
               <div>
                 <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Industry</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["Property", "Financial Planning"].map((ind) => (
-                    <button
-                      key={ind}
-                      type="button"
-                      onClick={() => {
-                        setIndustry(ind);
-                        setCertification(ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1]);
-                      }}
-                      style={{
-                        flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
-                        border: industry === ind ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
-                        background: industry === ind ? NAVY : "#fff",
-                        color: industry === ind ? "#fff" : NAVY,
-                      }}
-                    >
-                      {ind}
-                    </button>
-                  ))}
+                <div style={{
+                  padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  border: `2px solid ${NAVY}`, background: NAVY, color: "#fff",
+                }}>
+                  Property
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>
+                  Financial Planning coming later — Phase 1 focuses on property agents.
                 </div>
               </div>
 

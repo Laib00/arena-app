@@ -39,18 +39,29 @@ Rules:
 - Under 200 words. No markdown.`;
 }
 
+/** First reflection — before seeing client feedback (uncontaminated). */
 const REFLECTION_PROMPTS = [
-  "What moment in the conversation felt hardest for you, and why?",
+  "Overall, how do you feel the conversation went?",
+  "What moment felt hardest for you, and why?",
+  "What do you think the client felt about you during this meeting?",
   "What would you try differently if you met this client again?",
-  "What did you notice about how the client responded to you?",
+  "What is one thing you think you did well?",
 ];
 
+/** After reading client feedback — second learning layer. */
+const REFLECTION_UPDATE_PROMPTS = [
+  "Now that you've read the client's feedback, how does it compare to what you expected?",
+  "What surprised you most about how the client felt?",
+  "Looking back at your first reflection, what would you change or keep?",
+];
+
+const STEP_ORDER = ["reflection", "feedback", "reflection_update", "facts"];
+
 function StepDots({ step }) {
-  const steps = ["feedback", "reflection", "facts"];
-  const idx = steps.indexOf(step);
+  const idx = STEP_ORDER.indexOf(step);
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-      {steps.map((s, i) => (
+      {STEP_ORDER.map((s, i) => (
         <div
           key={s}
           style={{
@@ -64,8 +75,9 @@ function StepDots({ step }) {
 }
 
 /**
- * Post-session flow: Client feedback → Reflection → Facts.
- * Optional coaching eval stays separate (temporary / later coach stage).
+ * Post-session flow (boss update):
+ * Experience → Reflection → Client feedback → Reflection update → Facts
+ * Optional AI coaching stays out of this path.
  */
 export default function SessionDebrief({
   open,
@@ -80,11 +92,12 @@ export default function SessionDebrief({
   callAI,
   onSaveDebrief,
 }) {
-  const [step, setStep] = useState("feedback"); // feedback | reflection | facts | done
+  const [step, setStep] = useState("reflection");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [clientFeedback, setClientFeedback] = useState("");
   const [reflection, setReflection] = useState("");
+  const [reflectionUpdate, setReflectionUpdate] = useState("");
   const [facts, setFacts] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -115,7 +128,7 @@ export default function SessionDebrief({
       const prompt = buildFactsPrompt(himself, client, aim, setting);
       const text = await callAI(prompt, [{
         role: "user",
-        content: `Transcript:\n\n${transcriptText()}\n\nTrainee reflection (for context only — do not coach from it):\n${reflection || "(none)"}`,
+        content: `Transcript:\n\n${transcriptText()}\n\nTrainee reflection before client feedback (context only — do not coach):\n${reflection || "(none)"}\n\nTrainee reflection update after client feedback (context only — do not coach):\n${reflectionUpdate || "(none)"}`,
       }]);
       setFacts(text);
     } catch (e) {
@@ -127,13 +140,26 @@ export default function SessionDebrief({
 
   useEffect(() => {
     if (!open) return;
-    setStep("feedback");
+    setStep("reflection");
     setClientFeedback("");
     setReflection("");
+    setReflectionUpdate("");
     setFacts("");
     setError(null);
-    generateFeedback();
+    setLoading(false);
   }, [open]);
+
+  function goToFeedback() {
+    setStep("feedback");
+    setClientFeedback("");
+    generateFeedback();
+  }
+
+  function goToFacts() {
+    setStep("facts");
+    setFacts("");
+    generateFacts();
+  }
 
   async function finish() {
     setSaving(true);
@@ -143,6 +169,7 @@ export default function SessionDebrief({
         await onSaveDebrief({
           clientFeedback,
           reflection: reflection.trim(),
+          reflectionUpdate: reflectionUpdate.trim(),
           facts,
           conversationId,
         });
@@ -159,8 +186,9 @@ export default function SessionDebrief({
   if (!open) return null;
 
   const titles = {
-    feedback: "Client feedback",
     reflection: "Your reflection",
+    feedback: "Client feedback",
+    reflection_update: "Update your reflection",
     facts: "Session facts",
     done: "Session complete",
   };
@@ -180,12 +208,42 @@ export default function SessionDebrief({
         </div>
         <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 18 }}>
           Session with {client.name}
+          {step === "reflection" && " — your view first, before seeing how the client felt"}
           {step === "feedback" && " — how the client felt (not coaching)"}
-          {step === "reflection" && " — take a moment before seeing the facts"}
+          {step === "reflection_update" && " — compare your first reflection with the client's feedback"}
           {step === "facts" && " — observations only, no advice"}
         </p>
 
         {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{error}</div>}
+
+        {step === "reflection" && (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              {REFLECTION_PROMPTS.map((q) => (
+                <div key={q} style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 6 }}>• {q}</div>
+              ))}
+            </div>
+            <textarea
+              value={reflection}
+              onChange={(e) => setReflection(e.target.value)}
+              placeholder="Write your reflection here before you see the client's feedback..."
+              rows={7}
+              style={{
+                width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 8,
+                border: "1px solid #E2DFD6", fontSize: 14, fontFamily: "inherit", color: NAVY,
+                resize: "vertical", marginBottom: 14,
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={goToFeedback} style={primaryBtnStyle(false)}>
+                Continue to client feedback <ArrowRight size={16} />
+              </button>
+              <button onClick={goToFeedback} style={secondaryBtnStyle}>
+                Skip for now
+              </button>
+            </div>
+          </>
+        )}
 
         {step === "feedback" && (
           <>
@@ -200,25 +258,25 @@ export default function SessionDebrief({
             )}
             <button
               disabled={loading || !clientFeedback}
-              onClick={() => setStep("reflection")}
+              onClick={() => setStep("reflection_update")}
               style={primaryBtnStyle(loading || !clientFeedback)}
             >
-              Continue to reflection <ArrowRight size={16} />
+              Continue <ArrowRight size={16} />
             </button>
           </>
         )}
 
-        {step === "reflection" && (
+        {step === "reflection_update" && (
           <>
             <div style={{ marginBottom: 12 }}>
-              {REFLECTION_PROMPTS.map((q) => (
+              {REFLECTION_UPDATE_PROMPTS.map((q) => (
                 <div key={q} style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 6 }}>• {q}</div>
               ))}
             </div>
             <textarea
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
-              placeholder="Write your reflection here (a few sentences is enough)..."
+              value={reflectionUpdate}
+              onChange={(e) => setReflectionUpdate(e.target.value)}
+              placeholder="How has your view changed after reading the client's feedback?"
               rows={6}
               style={{
                 width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 8,
@@ -227,17 +285,11 @@ export default function SessionDebrief({
               }}
             />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                onClick={() => { setStep("facts"); generateFacts(); }}
-                style={primaryBtnStyle(false)}
-              >
+              <button onClick={goToFacts} style={primaryBtnStyle(false)}>
                 Continue to facts <ArrowRight size={16} />
               </button>
-              <button
-                onClick={() => { setStep("facts"); generateFacts(); }}
-                style={secondaryBtnStyle}
-              >
-                Skip reflection
+              <button onClick={goToFacts} style={secondaryBtnStyle}>
+                Skip for now
               </button>
             </div>
           </>
@@ -267,7 +319,7 @@ export default function SessionDebrief({
         {step === "done" && (
           <>
             <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.6, marginBottom: 18 }}>
-              Your client feedback, reflection, and facts are saved. You can review them anytime in My History.
+              Your reflection, client feedback, update, and facts are saved. You can review them anytime in My History.
             </p>
             <button onClick={onClose} style={primaryBtnStyle(false)}>
               Done

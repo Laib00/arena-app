@@ -7,7 +7,8 @@ import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from ".
 
 /* ============================== DATA ============================== */
 
-
+/** Phase 1 focus: Property only. Set true later to show FP again. */
+const ENABLE_FINANCIAL_PLANNING = false;
 const SETTINGS = [
   { key: "Canvassing", desc: "This is a cold, unplanned encounter — the agent is reaching out or crossing paths with you (e.g. door-knocking, cold call, or bumping into you) with no prior relationship or appointment. You were not expecting this conversation." },
   { key: "First Appointment (Online-preceded)", desc: "You already exchanged messages or spoke briefly online (e.g. WhatsApp, a lead form, social media) before this. This is your first real conversation/meeting, so there's a little familiarity already, but you haven't properly met in person yet." },
@@ -330,9 +331,19 @@ async function callGemini(systemPrompt, messages) {
     body: JSON.stringify({ systemPrompt, contents }),
   });
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-  return data.text || (data.warning ? `(${data.warning})` : "(no response)");
+  const raw = await response.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error(
+      "AI API returned an empty or invalid response. " +
+        "If you're on localhost, use `vercel dev` (not only `npm run dev`) so /api/gemini runs, " +
+        "or test on the live Vercel site. Also check GEMINI_API_KEY / LLM_PROVIDER."
+    );
+  }
+  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+  return data?.text || (data?.warning ? `(${data.warning})` : "(no response)");
 }
 
 /* ============================== UI PRIMITIVES ============================== */
@@ -639,7 +650,9 @@ export default function App() {
           return;
         }
         setProfile(data);
-        const ind = data?.industry === "Financial Planning" ? "FP" : "Property";
+        const ind = (!ENABLE_FINANCIAL_PLANNING || data?.industry !== "Financial Planning")
+          ? "Property"
+          : "FP";
         setIndustry(ind);
         if (data?.agent_profile) {
           setHimself(data.agent_profile);
@@ -821,6 +834,7 @@ export default function App() {
   }
 
   async function switchIndustry(ind) {
+    if (!ENABLE_FINANCIAL_PLANNING && ind !== "Property") return;
     setIndustry(ind);
     setClientId(null);
     setRandomClient(null);
@@ -932,14 +946,24 @@ export default function App() {
     }
   }
 
-  async function saveDebrief({ clientFeedback, reflection, facts, conversationId: convId }) {
+  async function saveDebrief({ clientFeedback, reflection, reflectionUpdate, facts, conversationId: convId }) {
     if (!convId) return;
     await supabase.from("coaching_reports").insert({
       conversation_id: convId,
       client_feedback: clientFeedback,
       reflection: reflection || null,
+      reflection_update: reflectionUpdate || null,
       facts,
-      raw_text: ["CLIENT FEEDBACK", clientFeedback, "REFLECTION", reflection || "(skipped)", "FACTS", facts].join("\n\n"),
+      raw_text: [
+        "REFLECTION (before client feedback)",
+        reflection || "(skipped)",
+        "CLIENT FEEDBACK",
+        clientFeedback,
+        "REFLECTION UPDATE (after client feedback)",
+        reflectionUpdate || "(skipped)",
+        "FACTS",
+        facts,
+      ].join("\n\n"),
     });
     await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", convId);
     refreshOpenConversations();
@@ -1397,7 +1421,7 @@ function ProfileScreen({ profile, himself, himselfLoaded, industry, openChatCoun
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
-          Industry: <span style={{ fontWeight: 700, color: NAVY }}>{industry === "Property" ? "Property" : "Financial Planning"}</span>
+          Industry: <span style={{ fontWeight: 700, color: NAVY }}>{!ENABLE_FINANCIAL_PLANNING || industry === "Property" ? "Property" : "Financial Planning"}</span>
           <span style={{ color: "#9CA3AF" }}> — change this from the setup screen</span>
         </p>
 
@@ -1715,6 +1739,15 @@ function SetupScreen({
 
 function IndustryDisplay({ industry, switchIndustry }) {
   const [editing, setEditing] = useState(false);
+
+  if (!ENABLE_FINANCIAL_PLANNING) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 32, fontSize: 13, color: "#6B7280" }}>
+        <span>Industry:</span>
+        <span style={{ fontWeight: 700, color: NAVY }}>Property</span>
+      </div>
+    );
+  }
 
   if (editing) {
     return (
@@ -2224,6 +2257,15 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
                 )}
               </div>
 
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection (before client feedback)</div>
+              {detail.report?.reflection ? (
+                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
+                  {detail.report.reflection}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection saved.</div>
+              )}
+
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Client feedback</div>
               {detail.report?.client_feedback ? (
                 <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
@@ -2233,13 +2275,13 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
                 <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No client feedback for this session.</div>
               )}
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection</div>
-              {detail.report?.reflection ? (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection update (after client feedback)</div>
+              {detail.report?.reflection_update ? (
                 <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {detail.report.reflection}
+                  {detail.report.reflection_update}
                 </div>
               ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection saved.</div>
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection update saved.</div>
               )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Session facts</div>

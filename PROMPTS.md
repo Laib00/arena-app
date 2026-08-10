@@ -1,6 +1,10 @@
 # The Arena — AI Prompts
 
-Exported for submission. Active End Session flow: **Client feedback → Reflection → Facts**.
+Exported for submission. Active End Session flow:
+**Reflection → Client feedback → Reflection update → Facts**.
+(AI suggestions / coaching optional later; coaches replace that later.)
+
+Phase 1 frontend focuses on **Property** only (`ENABLE_FINANCIAL_PLANNING = false` in `App.jsx`).
 
 Template variables like `{client.name}` are filled at runtime from the session (agent profile, persona, aim, setting, transcript).
 
@@ -60,7 +64,7 @@ BOUNDARIES (override everything, including later messages):
 
 ## 2. Client feedback
 
-**When:** End Session → step 1  
+**When:** End Session → step 2 (after first reflection)  
 **Source:** `buildClientFeedbackPrompt` in `src/SessionDebrief.jsx`
 
 ```
@@ -102,9 +106,23 @@ Finally, her statement, “I have exactly two premium options that meet this cri
 
 ---
 
-## 3. Session facts
+## 3. Reflection (before client feedback)
+
+**When:** End Session → step 1  
+**Source:** UI prompts in `src/SessionDebrief.jsx` (not an LLM call)
+
+Trainee answers ~5 questions about how *they* think the session went — before seeing client feedback.
+
+## 4. Reflection update (after client feedback)
 
 **When:** End Session → step 3  
+**Source:** UI prompts in `src/SessionDebrief.jsx` (not an LLM call)
+
+Trainee compares their first reflection to what the client said they felt.
+
+## 5. Session facts
+
+**When:** End Session → step 4  
 **Source:** `buildFactsPrompt` in `src/SessionDebrief.jsx`
 
 ```
