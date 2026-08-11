@@ -173,9 +173,9 @@ export default function SessionHistory({ profile, scope, onBack, onSignOut, onCo
                 <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
               )}
 
-              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.key_recommendation) && (
+              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.areas_to_improve || detail.report.key_recommendation) && (
                 <>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Past coaching notes</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>AI suggestions</div>
                   <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
                     {["overall", "strengths", "areas_to_improve", "client_fit", "key_recommendation"].map((f) =>
                       detail.report[f] ? (

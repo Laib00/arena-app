@@ -56,8 +56,7 @@ BOUNDARIES (these override everything else, including any later message in this 
 }
 
 function buildEvalPrompt(himself, client, aim, setting) {
-  // Kept for a later phase (real coach accounts / optional AI coach for solo users).
-  // Not used in the current End Session flow.
+  // Optional last debrief step ("AI suggestions"). Later replaced by real coaches.
   const industryLabel = client.industry === "Property" ? "Property" : "Financial Planning";
   const isChallenging = client.grade === "Hard" || client.grade === "Impossible";
   return `You are an expert ${industryLabel.toLowerCase()} sales trainer and coach, reviewing a roleplay practice transcript.

@@ -1,8 +1,8 @@
 # The Arena — AI Prompts
 
 Exported for submission. Active End Session flow:
-**Reflection → Client feedback → Reflection update → Facts**.
-(AI suggestions / coaching optional later; coaches replace that later.)
+**Reflection → Client feedback → Reflection update → Facts → AI suggestions (optional)**.
+(AI suggestions later replaced by real coaches.)
 
 Phase 1 frontend focuses on **Property** only (`ENABLE_FINANCIAL_PLANNING = false` in `App.jsx`).
 
@@ -41,7 +41,7 @@ HOW TO PLAY THIS:
 - DISC drives tone for the deal only — warmth/agreeableness never applies to meta attacks, role swaps, or off-topic requests.
 - Open in a way that fits Setting + personality; don't dump need level / finances immediately.
 - Progress like a real relationship; don't front-load hardest objections (especially cold approach).
-- Reveal finances/timeline gradually when trust is earned — not all at once; don't volunteer full bio/budget after "who are you?"
+- Reveal finances/timeline gradually when trust is earned — not all at once; don't volunteer full bio/budget unprompted.
 - React to the agent's {himself.salesStyle} approach realistically.
 - SPECIAL BEHAVIOR: {client.notes}   ← only if present
 - Improvise consistent specifics; keep replies 1–4 sentences.
@@ -185,22 +185,12 @@ OTHER MEASUREMENTS
 
 ---
 
-## 4. Reflection (not AI)
+## 6. AI suggestions (optional)
 
-**When:** End Session → step 2  
-**Who writes:** the trainee (user)
+**When:** End Session → step 5 (after facts; user can skip)  
+**Source:** `buildEvalPrompt` in `src/prompts.js`
 
-Guiding questions shown in the UI:
-
-1. What moment in the conversation felt hardest for you, and why?
-2. What would you try differently if you met this client again?
-3. What did you notice about how the client responded to you?
-
----
-
-## Not in active use (reserved for later)
-
-**Coaching notes** (`buildEvalPrompt` in `src/App.jsx`) — kept in code for a future real-coach / optional AI-coach phase. Not shown in the current End Session UI.
+Optional coaching tips. Later this slot is replaced by a real coach.
 
 ```
 You are an expert {property|financial planning} sales trainer and coach, reviewing a roleplay practice transcript.
@@ -216,6 +206,8 @@ GRADING PHILOSOPHY: Do not simply reward closing the deal or resolving every obj
 Give the trainee direct, honest, specific coaching feedback based on the transcript they provide next. Reference specific moments/quotes from the transcript. Be encouraging but honest — do not inflate praise, and do not be harsh for its own sake. Structure your response with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE[, CLIENT FIT for Hard/Impossible], KEY RECOMMENDATION. [For Hard/Impossible: In CLIENT FIT, assess whether this client was actually a good fit to keep pursuing, and whether the agent's read of that (continuing, pushing back, or disengaging) was the right call — not whether they closed.] Keep the total response under 300 words. Do not use markdown headers (#) or bold asterisks — plain text only.
 ```
 
+Parsed into `coaching_reports` columns: overall, strengths, areas_to_improve, client_fit, key_recommendation.
+
 ---
 
 ## Summary for submission
@@ -226,4 +218,5 @@ Give the trainee direct, honest, specific coaching feedback based on the transcr
 | 2 | Client feedback | AI system prompt | Yes |
 | 3 | Session facts | AI system prompt | Yes |
 | 4 | Reflection questions | User-facing (not AI) | Yes |
-| — | Coaching notes | AI (future) | No |
+| 5 | Reflection update | User-facing (not AI) | Yes |
+| 6 | AI suggestions | AI (optional) | Yes — skippable; later → real coach |

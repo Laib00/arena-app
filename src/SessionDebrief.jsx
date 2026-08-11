@@ -1,9 +1,44 @@
 import React, { useEffect, useState } from "react";
 import { X, ArrowRight, Sparkles } from "lucide-react";
 import { DISC } from "./constants";
+import { buildEvalPrompt } from "./prompts";
 
 const NAVY = "#0A1628";
 const GOLD = "#D4AF37";
+
+/** Parse OVERALL / STRENGTHS / … blocks from AI suggestions text. */
+export function parseEvalSections(text) {
+  if (!text || !String(text).trim()) return null;
+  const labels = [
+    { key: "overall", re: /^OVERALL\s*$/i },
+    { key: "strengths", re: /^STRENGTHS\s*$/i },
+    { key: "areas_to_improve", re: /^AREAS TO IMPROVE\s*$/i },
+    { key: "client_fit", re: /^CLIENT FIT\s*$/i },
+    { key: "key_recommendation", re: /^KEY RECOMMENDATION\s*$/i },
+  ];
+  const lines = String(text).replace(/\r\n/g, "\n").split("\n");
+  const sections = {};
+  let current = null;
+  let buf = [];
+  const flush = () => {
+    if (current) sections[current] = buf.join("\n").trim();
+    buf = [];
+  };
+  for (const line of lines) {
+    const matched = labels.find((l) => l.re.test(line.trim()));
+    if (matched) {
+      flush();
+      current = matched.key;
+      continue;
+    }
+    if (current) buf.push(line);
+  }
+  flush();
+  if (!Object.values(sections).some(Boolean)) {
+    return { overall: String(text).trim() };
+  }
+  return sections;
+}
 
 export function buildClientFeedbackPrompt(himself, client, aim, setting) {
   return `You are roleplaying as the client "${client.name}" from a sales practice session — not as a coach or trainer.
@@ -57,7 +92,7 @@ export const REFLECTION_UPDATE_PROMPTS = [
   "What is one specific behaviour you'll practice next time with a similar client?",
 ];
 
-const STEP_ORDER = ["reflection", "feedback", "reflection_update", "facts"];
+const STEP_ORDER = ["reflection", "feedback", "reflection_update", "facts", "suggestions"];
 
 function emptyAnswers(prompts) {
   return prompts.map(() => "");
@@ -176,7 +211,8 @@ function StepDots({ step }) {
 
 /**
  * Post-session flow:
- * Experience → Reflection (per question) → Client feedback → Reflection update → Facts
+ * Experience → Reflection → Client feedback → Reflection update → Facts → AI suggestions (optional)
+ * (AI suggestions later replaced by a real coach.)
  */
 export default function SessionDebrief({
   open,
@@ -198,6 +234,8 @@ export default function SessionDebrief({
   const [reflectionAnswers, setReflectionAnswers] = useState(() => emptyAnswers(REFLECTION_PROMPTS));
   const [updateAnswers, setUpdateAnswers] = useState(() => emptyAnswers(REFLECTION_UPDATE_PROMPTS));
   const [facts, setFacts] = useState("");
+  const [suggestions, setSuggestions] = useState("");
+  const [suggestionsSections, setSuggestionsSections] = useState(null);
   const [saving, setSaving] = useState(false);
 
   function transcriptText() {
@@ -239,6 +277,26 @@ export default function SessionDebrief({
     }
   }
 
+  async function generateSuggestions() {
+    setLoading(true);
+    setError(null);
+    try {
+      const reflectionJson = serializeReflectionAnswers(REFLECTION_PROMPTS, reflectionAnswers);
+      const updateJson = serializeReflectionAnswers(REFLECTION_UPDATE_PROMPTS, updateAnswers);
+      const prompt = buildEvalPrompt(himself, client, aim, setting);
+      const text = await callAI(prompt, [{
+        role: "user",
+        content: `Transcript:\n\n${transcriptText()}\n\nSession facts (context):\n${facts || "(none)"}\n\nTrainee reflection before client feedback:\n${formatReflectionForPrompt(reflectionJson)}\n\nClient feedback:\n${clientFeedback || "(none)"}\n\nTrainee reflection update:\n${formatReflectionForPrompt(updateJson)}`,
+      }]);
+      setSuggestions(text);
+      setSuggestionsSections(parseEvalSections(text));
+    } catch (e) {
+      setError("Couldn't generate AI suggestions. " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
     setStep("reflection");
@@ -246,6 +304,8 @@ export default function SessionDebrief({
     setReflectionAnswers(emptyAnswers(REFLECTION_PROMPTS));
     setUpdateAnswers(emptyAnswers(REFLECTION_UPDATE_PROMPTS));
     setFacts("");
+    setSuggestions("");
+    setSuggestionsSections(null);
     setError(null);
     setLoading(false);
   }, [open]);
@@ -262,7 +322,14 @@ export default function SessionDebrief({
     generateFacts();
   }
 
-  async function finish() {
+  function goToSuggestions() {
+    setStep("suggestions");
+    setSuggestions("");
+    setSuggestionsSections(null);
+    generateSuggestions();
+  }
+
+  async function finish({ includeSuggestions = false } = {}) {
     setSaving(true);
     setError(null);
     try {
@@ -272,6 +339,8 @@ export default function SessionDebrief({
           reflection: serializeReflectionAnswers(REFLECTION_PROMPTS, reflectionAnswers),
           reflectionUpdate: serializeReflectionAnswers(REFLECTION_UPDATE_PROMPTS, updateAnswers),
           facts,
+          suggestions: includeSuggestions ? suggestions : null,
+          suggestionsSections: includeSuggestions ? suggestionsSections : null,
           conversationId,
         });
       }
@@ -291,6 +360,7 @@ export default function SessionDebrief({
     feedback: "Client feedback",
     reflection_update: "Update your reflection",
     facts: "Session facts",
+    suggestions: "AI suggestions",
     done: "Session complete",
   };
 
@@ -313,6 +383,7 @@ export default function SessionDebrief({
           {step === "feedback" && " — how the client felt (not coaching)"}
           {step === "reflection_update" && " — compare your first reflection with the client's feedback"}
           {step === "facts" && " — observations only, no advice"}
+          {step === "suggestions" && " — optional coaching tips (later replaced by a real coach)"}
         </p>
 
         {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{error}</div>}
@@ -387,20 +458,57 @@ export default function SessionDebrief({
                 {facts}
               </div>
             )}
-            <button
-              disabled={loading || !facts || saving}
-              onClick={finish}
-              style={primaryBtnStyle(loading || !facts || saving)}
-            >
-              {saving ? "Saving..." : "Finish session"}
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                disabled={loading || !facts || saving}
+                onClick={goToSuggestions}
+                style={primaryBtnStyle(loading || !facts || saving)}
+              >
+                Get AI suggestions <ArrowRight size={16} />
+              </button>
+              <button
+                disabled={loading || !facts || saving}
+                onClick={() => finish({ includeSuggestions: false })}
+                style={secondaryBtnStyle}
+              >
+                {saving ? "Saving..." : "Finish without suggestions"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "suggestions" && (
+          <>
+            {loading ? (
+              <div style={{ padding: "28px 0", textAlign: "center", color: "#6B7280", fontSize: 14 }}>
+                Preparing coaching suggestions...
+              </div>
+            ) : (
+              <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
+                {suggestions}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                disabled={loading || !suggestions || saving}
+                onClick={() => finish({ includeSuggestions: true })}
+                style={primaryBtnStyle(loading || !suggestions || saving)}
+              >
+                {saving ? "Saving..." : "Finish session"}
+              </button>
+              {!loading && !suggestions && (
+                <button onClick={generateSuggestions} style={secondaryBtnStyle}>
+                  Retry
+                </button>
+              )}
+            </div>
           </>
         )}
 
         {step === "done" && (
           <>
             <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.6, marginBottom: 18 }}>
-              Your reflection answers, client feedback, update, and facts are saved. You can review them anytime in My History.
+              Your reflection, client feedback, update, facts{suggestions ? ", and AI suggestions" : ""} are saved. You can review them anytime in My History.
             </p>
             <button onClick={onClose} style={primaryBtnStyle(false)}>
               Done

@@ -367,24 +367,34 @@ export default function App() {
     }
   }
 
-  async function saveDebrief({ clientFeedback, reflection, reflectionUpdate, facts, conversationId: convId }) {
+  async function saveDebrief({ clientFeedback, reflection, reflectionUpdate, facts, suggestions, suggestionsSections, conversationId: convId }) {
     if (!convId) return;
+    const sections = suggestionsSections || {};
+    const rawParts = [
+      "REFLECTION (before client feedback)",
+      formatReflectionForPrompt(reflection),
+      "CLIENT FEEDBACK",
+      clientFeedback,
+      "REFLECTION UPDATE (after client feedback)",
+      formatReflectionForPrompt(reflectionUpdate),
+      "FACTS",
+      facts,
+    ];
+    if (suggestions) {
+      rawParts.push("AI SUGGESTIONS", suggestions);
+    }
     await supabase.from("coaching_reports").insert({
       conversation_id: convId,
       client_feedback: clientFeedback,
       reflection: reflection || null,
       reflection_update: reflectionUpdate || null,
       facts,
-      raw_text: [
-        "REFLECTION (before client feedback)",
-        formatReflectionForPrompt(reflection),
-        "CLIENT FEEDBACK",
-        clientFeedback,
-        "REFLECTION UPDATE (after client feedback)",
-        formatReflectionForPrompt(reflectionUpdate),
-        "FACTS",
-        facts,
-      ].join("\n\n"),
+      overall: sections.overall || null,
+      strengths: sections.strengths || null,
+      areas_to_improve: sections.areas_to_improve || null,
+      client_fit: sections.client_fit || null,
+      key_recommendation: sections.key_recommendation || null,
+      raw_text: rawParts.join("\n\n"),
     });
     await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", convId);
     refreshOpenConversations();
