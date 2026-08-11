@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, X, Award, ArrowRight, ArrowLeft, LogOut, Users, Trash2, Menu } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
-import SessionDebrief from "./SessionDebrief";
+import SessionDebrief, { formatReflectionForPrompt, ReflectionAnswersView } from "./SessionDebrief";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
 
 /* ============================== DATA ============================== */
@@ -956,11 +956,11 @@ export default function App() {
       facts,
       raw_text: [
         "REFLECTION (before client feedback)",
-        reflection || "(skipped)",
+        formatReflectionForPrompt(reflection),
         "CLIENT FEEDBACK",
         clientFeedback,
         "REFLECTION UPDATE (after client feedback)",
-        reflectionUpdate || "(skipped)",
+        formatReflectionForPrompt(reflectionUpdate),
         "FACTS",
         facts,
       ].join("\n\n"),
@@ -2258,13 +2258,7 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
               </div>
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection (before client feedback)</div>
-              {detail.report?.reflection ? (
-                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {detail.report.reflection}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection saved.</div>
-              )}
+              <ReflectionAnswersView value={detail.report?.reflection} />
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Client feedback</div>
               {detail.report?.client_feedback ? (
@@ -2276,13 +2270,7 @@ function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
               )}
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection update (after client feedback)</div>
-              {detail.report?.reflection_update ? (
-                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {detail.report.reflection_update}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No reflection update saved.</div>
-              )}
+              <ReflectionAnswersView value={detail.report?.reflection_update} />
 
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Session facts</div>
               {detail.report?.facts ? (
