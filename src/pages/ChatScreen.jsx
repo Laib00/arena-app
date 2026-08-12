@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Send, Award, ArrowLeft, Menu } from "lucide-react";
+import { Send, Award } from "lucide-react";
 import { NAVY, GOLD, CREAM } from "../theme";
 import SessionDebrief from "../SessionDebrief";
 import GradeBadge from "../components/GradeBadge";
@@ -7,6 +7,7 @@ import MessageBubble from "../components/MessageBubble";
 import TypingIndicator from "../components/TypingIndicator";
 import AutoResizeTextarea from "../components/AutoResizeTextarea";
 import NotesPanel from "../components/NotesPanel";
+import PageHeader from "../components/PageHeader";
 
 export default function ChatScreen({
   himself, client, aim, setting, displayMessages, loading, error,
@@ -18,46 +19,38 @@ export default function ChatScreen({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Header */}
-      <div style={{ background: NAVY, color: "#fff", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            onClick={onMenuToggle}
-            className="arena-menu-toggle"
-            style={{ display: "none", background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4 }}
-          >
-            <Menu size={20} />
-          </button>
-          <button onClick={resetAll} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13, opacity: 0.85 }}>
-            <ArrowLeft size={15} /> New
-          </button>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name} <GradeBadge grade={client.grade} /></div>
-            <div style={{ fontSize: 11.5, opacity: 0.75 }}>DISC {client.disc} · {aim.key} · {setting.key}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setNotesOpen(true)}
-            style={{ background: "rgba(255,255,255,0.12)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-          >
-            Notes
-          </button>
-          <button
-            onClick={onEndSession}
-            disabled={displayMessages.length === 0}
-            style={{
-              background: GOLD, color: NAVY, border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13,
-              cursor: displayMessages.length === 0 ? "not-allowed" : "pointer",
-              opacity: displayMessages.length === 0 ? 0.5 : 1,
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            <Award size={16} /> End Session
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        brand="back"
+        onHome={resetAll}
+        onMenuToggle={onMenuToggle}
+        title={client.name}
+        subtitle={`DISC ${client.disc} · ${aim.key} · ${setting.key}`}
+        actions={
+          <>
+            <GradeBadge grade={client.grade} />
+            <button
+              type="button"
+              onClick={() => setNotesOpen(true)}
+              className="arena-topbar-link"
+            >
+              Notes
+            </button>
+            <button
+              type="button"
+              onClick={onEndSession}
+              disabled={displayMessages.length === 0}
+              style={{
+                background: GOLD, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13,
+                cursor: displayMessages.length === 0 ? "not-allowed" : "pointer",
+                opacity: displayMessages.length === 0 ? 0.5 : 1,
+                display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
+              }}
+            >
+              <Award size={16} /> End Session
+            </button>
+          </>
+        }
+      />
 
       {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px", background: CREAM }}>

@@ -1,14 +1,26 @@
-import { LogOut, Users, Menu } from "lucide-react";
-import { NAVY, GOLD } from "../theme";
+import { Menu } from "lucide-react";
+import { NAVY } from "../theme";
+import { ArenaLogo } from "./PageHeader";
 
-export default function TopBar({ profile, onSignOut, onTeamView, onHistoryView, onProfileView, onMenuToggle }) {
-  const navButtonStyle = {
-    background: "none", border: "none", cursor: "pointer", color: NAVY, fontWeight: 600,
-    display: "flex", alignItems: "center", gap: 4,
-  };
+export default function TopBar({
+  profile,
+  onSignOut,
+  onTeamView,
+  onHistoryView,
+  onProfileView,
+  onHomeView,
+  onMenuToggle,
+  onProgressClick,
+}) {
+  const initials = (profile?.full_name || profile?.email || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("") || "?";
 
   return (
-    <div className="arena-topbar">
+    <div className="arena-topbar" style={{ background: "#fff" }}>
       <button
         onClick={onMenuToggle}
         className="arena-menu-toggle"
@@ -17,23 +29,34 @@ export default function TopBar({ profile, onSignOut, onTeamView, onHistoryView, 
       >
         <Menu size={20} />
       </button>
+
+      <ArenaLogo onClick={onHomeView} />
+
       <div className="arena-topbar-actions arena-topbar-desktop-nav">
-        {profile && (
-          <span>
-            {profile.full_name || profile.email}
-            {profile.role === "manager" && <span style={{ color: GOLD, fontWeight: 700 }}> · Manager</span>}
-          </span>
-        )}
-        <button onClick={onProfileView} style={navButtonStyle}>Profile</button>
-        <button onClick={onHistoryView} style={navButtonStyle}>My History</button>
+        <button type="button" onClick={onHomeView} className="arena-topbar-link">Home</button>
+        <button type="button" onClick={onProgressClick} className="arena-topbar-link">Progress</button>
+        <button type="button" onClick={onHistoryView} className="arena-topbar-link">History</button>
         {profile?.role === "manager" && (
-          <button onClick={onTeamView} style={navButtonStyle}>
-            <Users size={14} /> Team Dashboard
-          </button>
+          <button type="button" onClick={onTeamView} className="arena-topbar-link">Team</button>
         )}
-        <button onClick={onSignOut} style={navButtonStyle}>
-          <LogOut size={14} /> Sign Out
+        <button
+          type="button"
+          onClick={onProfileView}
+          title={profile?.full_name || profile?.email}
+          className="arena-topbar-link"
+          style={{ gap: 8 }}
+        >
+          <span
+            style={{
+              width: 32, height: 32, borderRadius: "50%", background: NAVY, color: "#fff",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700,
+            }}
+          >
+            {initials}
+          </span>
         </button>
+        <button type="button" onClick={onSignOut} className="arena-topbar-link">Sign Out</button>
       </div>
     </div>
   );

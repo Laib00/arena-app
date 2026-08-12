@@ -157,6 +157,8 @@ export default function App() {
   const [randomClient, setRandomClient] = useState(null);
   const [aimKey, setAimKey] = useState(null);
   const [settingKey, setSettingKey] = useState(SETTINGS[0].key);
+  const [challenge, setChallenge] = useState(null);
+  const [recentSessions, setRecentSessions] = useState({ items: [], totalEndedCount: 0 });
 
   const [displayMessages, setDisplayMessages] = useState([]);
   const [apiMessages, setApiMessages] = useState([]);
@@ -168,6 +170,23 @@ export default function App() {
   const [debriefOpen, setDebriefOpen] = useState(false);
 
   const scrollRef = useRef(null);
+
+  async function refreshRecentSessions() {
+    if (!profile) return;
+    const { data: ended } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", profile.id)
+      .not("ended_at", "is", null)
+      .order("ended_at", { ascending: false })
+      .limit(3);
+    const { count } = await supabase
+      .from("conversations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", profile.id)
+      .not("ended_at", "is", null);
+    setRecentSessions({ items: ended || [], totalEndedCount: count || 0 });
+  }
 
   async function loadConversationIntoState(conv) {
     if (!conv || !conv.client_snapshot) return;
@@ -184,6 +203,7 @@ export default function App() {
     setClientId(null);
     setAimKey(conv.aim_snapshot?.key || null);
     setSettingKey(conv.setting_snapshot?.key || SETTINGS[0].key);
+    setChallenge(conv.challenge_snapshot || null);
     setConversationId(conv.id);
 
     const restored = (pastMessages || []).map((m) => ({
@@ -196,9 +216,8 @@ export default function App() {
     setStep("chat");
   }
 
-  // On login, check for open (not-yet-ended) conversations, populate the
-  // sidebar with all of them, and auto-resume the most recent one — exactly
-  // where it left off. Only ends when the user hits End & Evaluate.
+  // On login, load open (not-yet-ended) conversations into the sidebar.
+  // Do not auto-enter chat — land on home; user resumes from the sidebar.
   useEffect(() => {
     if (!session || !profile) return;
     let cancelled = false;
@@ -214,15 +233,9 @@ export default function App() {
       if (cancelled) return;
       setOpenConversations(openConvs || []);
       refreshMetPersonas();
+      refreshRecentSessions();
 
-      const openConv = openConvs?.[0];
-      if (!openConv || !openConv.client_snapshot) {
-        setResumeChecked(true);
-        return;
-      }
-
-      await loadConversationIntoState(openConv);
-      setStep("chat");
+      // Stay on home after refresh/login — open chats remain in the sidebar to resume manually.
       setResumeChecked(true);
     })();
 
@@ -260,6 +273,7 @@ export default function App() {
     setClientId(null);
     setRandomClient(null);
     setAimKey(null);
+    setChallenge(null);
     const updatedHimself = {
       ...himself,
       occupation: ind === "Property" ? "Property Agent" : "Financial Advisor",
@@ -285,30 +299,42 @@ export default function App() {
     }
   }
 
-  async function startRoleplay() {
-    if (!client || !aim || !setting) return;
+  async function startRoleplayWith({
+    client: startClient,
+    aim: startAim,
+    setting: startSetting,
+    challenge: startChallenge = null,
+    himself: startHimself = himself,
+  }) {
+    if (!startClient || !startAim || !startSetting) return;
     setError(null);
     setLoading(true);
     setStep("chat");
+    setChallenge(startChallenge);
+    setRandomClient(startClient);
+    setClientId(null);
+    setAimKey(startAim.key);
+    setSettingKey(startSetting.key);
 
-    // Create the conversation row up front so every message can reference it.
     let newConversationId = null;
     try {
+      const insertRow = {
+        user_id: session.user.id,
+        industry: startClient.industry,
+        client_persona_id: startClient.id,
+        client_name: startClient.name,
+        client_grade: startClient.grade,
+        aim: startAim.key,
+        setting: startSetting.key,
+        himself_snapshot: startHimself,
+        client_snapshot: startClient,
+        aim_snapshot: startAim,
+        setting_snapshot: startSetting,
+        challenge_snapshot: startChallenge,
+      };
       const { data, error: dbErr } = await supabase
         .from("conversations")
-        .insert({
-          user_id: session.user.id,
-          industry: client.industry,
-          client_persona_id: client.id,
-          client_name: client.name,
-          client_grade: client.grade,
-          aim: aim.key,
-          setting: setting.key,
-          himself_snapshot: himself,
-          client_snapshot: client,
-          aim_snapshot: aim,
-          setting_snapshot: setting,
-        })
+        .insert(insertRow)
         .select()
         .single();
       if (dbErr) throw dbErr;
@@ -318,10 +344,39 @@ export default function App() {
       refreshMetPersonas();
     } catch (e) {
       console.error("Failed to create conversation record:", e.message);
-      // Continue anyway — the roleplay itself shouldn't be blocked by a save failure.
+      // If challenge_snapshot column is missing, retry without it
+      if (startChallenge && String(e.message || "").includes("challenge_snapshot")) {
+        try {
+          const { data, error: dbErr2 } = await supabase
+            .from("conversations")
+            .insert({
+              user_id: session.user.id,
+              industry: startClient.industry,
+              client_persona_id: startClient.id,
+              client_name: startClient.name,
+              client_grade: startClient.grade,
+              aim: startAim.key,
+              setting: startSetting.key,
+              himself_snapshot: startHimself,
+              client_snapshot: { ...startClient, _challenge: startChallenge },
+              aim_snapshot: startAim,
+              setting_snapshot: startSetting,
+            })
+            .select()
+            .single();
+          if (!dbErr2) {
+            newConversationId = data.id;
+            setConversationId(newConversationId);
+            refreshOpenConversations();
+            refreshMetPersonas();
+          }
+        } catch (e2) {
+          console.error("Retry without challenge column failed:", e2.message);
+        }
+      }
     }
 
-    const systemPrompt = buildSystemPrompt(himself, client, aim, setting);
+    const systemPrompt = buildSystemPrompt(startHimself, startClient, startAim, startSetting, startChallenge);
     const seed = { role: "user", content: "(The roleplay is beginning now. Open the conversation yourself, in character, exactly as instructed in your system prompt.)" };
     try {
       const reply = await callGemini(systemPrompt, [seed]);
@@ -333,6 +388,42 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function startRoleplay() {
+    await startRoleplayWith({ client, aim, setting, challenge, himself });
+  }
+
+  async function startTargetedChallenge(ch) {
+    const pool = industryPersonas.filter((p) => p.grade === "Medium" || p.grade === "Hard");
+    const pick = pool[Math.floor(Math.random() * pool.length)] || industryPersonas[0];
+    const startAim = aims[Math.floor(Math.random() * aims.length)];
+    const startSetting = SETTINGS[Math.floor(Math.random() * SETTINGS.length)];
+    if (!pick || !startAim || !startSetting) return;
+    await startRoleplayWith({
+      client: pick,
+      aim: startAim,
+      setting: startSetting,
+      challenge: ch,
+      himself,
+    });
+  }
+
+  async function replaySession(conv) {
+    if (!conv?.client_snapshot || !conv?.aim_snapshot || !conv?.setting_snapshot) {
+      alert("This session is missing saved setup details, so it can't be replayed.");
+      return;
+    }
+    const ch = conv.challenge_snapshot || conv.client_snapshot?._challenge || null;
+    const clientSnap = { ...conv.client_snapshot };
+    delete clientSnap._challenge;
+    await startRoleplayWith({
+      client: clientSnap,
+      aim: conv.aim_snapshot,
+      setting: conv.setting_snapshot,
+      challenge: ch,
+      himself: conv.himself_snapshot || himself,
+    });
   }
 
   async function saveMessage(convId, role, content) {
@@ -355,7 +446,7 @@ export default function App() {
     if (conversationId) saveMessage(conversationId, "agent", text);
     setLoading(true);
     try {
-      const systemPrompt = buildSystemPrompt(himself, client, aim, setting);
+      const systemPrompt = buildSystemPrompt(himself, client, aim, setting, challenge);
       const reply = await callGemini(systemPrompt, newApiMessages);
       setApiMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setDisplayMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -398,18 +489,18 @@ export default function App() {
     });
     await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", convId);
     refreshOpenConversations();
+    refreshRecentSessions();
   }
 
   function resetAll() {
-    // Deliberately does NOT close the conversation in the database — only
-    // finishing the debrief (or End Session flow) does that. This just clears
-    // local UI state so you can start picking a new session.
     setStep("setup");
     setDisplayMessages([]);
     setApiMessages([]);
     setDebriefOpen(false);
     setError(null);
     setConversationId(null);
+    setChallenge(null);
+    refreshRecentSessions();
   }
 
   const canStart = Boolean(client && aim && setting);
@@ -429,7 +520,7 @@ export default function App() {
   if (session && profile && !resumeChecked) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
-        Checking for an open session...
+        Loading...
       </div>
     );
   }
@@ -506,6 +597,10 @@ export default function App() {
             onTeamView={() => setView("team")}
             onHistoryView={() => setView("history")}
             onProfileView={() => setView("profile")}
+            onHomeView={() => setView("app")}
+            onProgressClick={() => {
+              document.getElementById("arena-progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
             onMenuToggle={() => setSidebarOpen(true)}
           />
         )}
@@ -514,7 +609,6 @@ export default function App() {
             industry={industry}
             switchIndustry={switchIndustry}
             himself={himself}
-            updateHimself={updateHimself}
             onEditProfile={() => setView("profile")}
             industryPersonas={industryPersonas}
             metPersonaIds={metPersonaIds}
@@ -527,8 +621,14 @@ export default function App() {
             setAimKey={setAimKey}
             settingKey={settingKey}
             setSettingKey={setSettingKey}
+            challenge={challenge}
+            setChallenge={setChallenge}
             canStart={canStart}
             startRoleplay={startRoleplay}
+            onStartChallenge={startTargetedChallenge}
+            recentSessions={recentSessions}
+            onReplay={replaySession}
+            onViewHistory={() => setView("history")}
           />
         ) : (
           <ChatScreen

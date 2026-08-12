@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, LogOut } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { ReflectionAnswersView } from "../SessionDebrief";
 import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
 import GradeBadge from "../components/GradeBadge";
+import PageHeader from "../components/PageHeader";
 
 export default function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
   const [conversations, setConversations] = useState([]);
@@ -64,18 +64,17 @@ export default function SessionHistory({ profile, scope, onBack, onSignOut, onCo
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
-      <div className="arena-page-header">
-        <div className="arena-page-header-left">
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13, flexShrink: 0 }}>
-            <ArrowLeft size={15} /> Back to app
-          </button>
-          <div className="arena-header-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
-          <div className="arena-page-header-title">{scope === "mine" ? "My History" : "Team Dashboard"}</div>
-        </div>
-        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          <LogOut size={14} /> Sign Out
-        </button>
-      </div>
+      <PageHeader
+        brand="back"
+        onHome={onBack}
+        title={scope === "mine" ? "My History" : "Team Dashboard"}
+        actions={
+          <>
+            <button type="button" onClick={onBack} className="arena-topbar-link">Home</button>
+            <button type="button" onClick={onSignOut} className="arena-topbar-link">Sign Out</button>
+          </>
+        }
+      />
 
       <div className={`arena-history-layout${selected ? " has-selection" : ""}`}>
         <div className="arena-history-list">

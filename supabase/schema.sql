@@ -113,6 +113,7 @@ alter table public.conversations add column if not exists himself_snapshot jsonb
 alter table public.conversations add column if not exists client_snapshot jsonb;
 alter table public.conversations add column if not exists aim_snapshot jsonb;
 alter table public.conversations add column if not exists setting_snapshot jsonb;
+alter table public.conversations add column if not exists challenge_snapshot jsonb;
 
 alter table public.conversations enable row level security;
 

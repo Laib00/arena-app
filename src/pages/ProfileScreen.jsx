@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowLeft, LogOut } from "lucide-react";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "../constants";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
 import { ENABLE_FINANCIAL_PLANNING } from "../data/personas";
 import Field from "../components/Field";
+import PageHeader from "../components/PageHeader";
 
 export default function ProfileScreen({ profile, himself, himselfLoaded, industry, openChatCount = 0, onSave, onBack, onSignOut }) {
   const [form, setForm] = useState(himself);
@@ -91,18 +91,17 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
-      <div style={{ background: NAVY, color: "#fff", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={handleBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
-            <ArrowLeft size={15} /> Back to app
-          </button>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.25)" }} />
-          <div style={{ fontWeight: 700, fontSize: 15 }}>Your Profile</div>
-        </div>
-        <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
-          <LogOut size={14} /> Sign Out
-        </button>
-      </div>
+      <PageHeader
+        brand="back"
+        onHome={handleBack}
+        title="Your Profile"
+        actions={
+          <>
+            <button type="button" onClick={handleBack} className="arena-topbar-link">Home</button>
+            <button type="button" onClick={onSignOut} className="arena-topbar-link">Sign Out</button>
+          </>
+        }
+      />
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>

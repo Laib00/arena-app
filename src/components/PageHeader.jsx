@@ -1,0 +1,63 @@
+import { Menu, ArrowLeft } from "lucide-react";
+import { NAVY, GOLD } from "../theme";
+
+export function ArenaLogo({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
+    >
+      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: `2px solid ${GOLD}` }}>
+        <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
+      </div>
+      <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, color: NAVY, fontWeight: 700 }}>Arena</span>
+    </button>
+  );
+}
+
+export default function PageHeader({ onHome, onMenuToggle, title, subtitle, children, actions, brand = "logo" }) {
+  return (
+    <div className="arena-topbar arena-page-header" style={{ background: "#fff" }}>
+      {onMenuToggle && (
+        <button
+          onClick={onMenuToggle}
+          className="arena-menu-toggle"
+          style={{ display: "none", background: "none", border: "none", cursor: "pointer", color: NAVY, padding: 4 }}
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+      )}
+      {brand === "back" ? (
+        <button
+          type="button"
+          onClick={onHome}
+          aria-label="Back to home"
+          className="arena-topbar-link"
+          style={{ padding: 4, flexShrink: 0 }}
+        >
+          <ArrowLeft size={20} color={NAVY} />
+        </button>
+      ) : (
+        <ArenaLogo onClick={onHome} />
+      )}
+      {(title || subtitle || children) && (
+        <div className="arena-page-header-left" style={{ minWidth: 0, flex: 1 }}>
+          {title && (
+            <div>
+              <div className="arena-page-header-title" style={{ color: NAVY }}>{title}</div>
+              {subtitle && <div style={{ fontSize: 11.5, color: "#55606F", marginTop: 2 }}>{subtitle}</div>}
+            </div>
+          )}
+          {children}
+        </div>
+      )}
+      {actions && (
+        <div className="arena-topbar-actions" style={{ marginLeft: "auto" }}>
+          {actions}
+        </div>
+      )}
+    </div>
+  );
+}

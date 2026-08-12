@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { X, ArrowRight, Sparkles } from "lucide-react";
 import { DISC } from "./constants";
 import { buildEvalPrompt } from "./prompts";
-
 import { NAVY, ACCENT as GOLD } from "./theme";
 
 /** Parse OVERALL / STRENGTHS / … blocks from AI suggestions text. */
@@ -384,7 +383,7 @@ export default function SessionDebrief({
           {step === "feedback" && " — how the client felt (not coaching)"}
           {step === "reflection_update" && " — compare your first reflection with the client's feedback"}
           {step === "facts" && " — observations only, no advice"}
-          {step === "suggestions" && " — optional coaching tips (later replaced by a real coach)"}
+          {step === "suggestions" && " — coaching tips based on this session"}
         </p>
 
         {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{error}</div>}

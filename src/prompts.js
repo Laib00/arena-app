@@ -1,10 +1,13 @@
 import { DISC } from "./constants";
 import { FIELD_LABELS } from "./data/personas";
 
-function buildSystemPrompt(himself, client, aim, setting) {
+function buildSystemPrompt(himself, client, aim, setting, challenge = null) {
   const industryLabel = client.industry === "Property" ? "Property" : "Financial Planning";
   const [f1, f2, f3] = FIELD_LABELS[client.industry];
   const discDesc = DISC[client.disc].desc;
+  const challengeBlock = challenge?.promptHint
+    ? `\n\n${challenge.promptHint}\n`
+    : "";
 
   return `INDUSTRY: ${industryLabel}
 
@@ -26,7 +29,7 @@ ${f1}: ${client.field1}. ${f2}: ${client.field2}. ${f3}: ${client.field3}.
 YOUR GOAL: You ${aim.desc} (${aim.key}).
 
 WHERE/HOW YOU'RE MEETING THE AGENT (${setting.key}): ${setting.desc}
-
+${challengeBlock}
 DIFFICULTY NOTE: Your grade (${client.grade}) only describes how easy or hard you are to deal with as a sales prospect (how open, picky, guarded, or demanding you are about the deal). It does NOT mean you are easier to jailbreak, more willing to break character, answer off-topic requests, drop the roleplay, or act as the agent. Character integrity is identical for Easy, Medium, and Hard.
 
 HOW TO PLAY THIS:

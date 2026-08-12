@@ -29,6 +29,38 @@ const FIELD_LABELS = {
   FP: ["Investable Assets / Income (SGD)", "Risk Appetite", "Existing Financial Products / Coverage"],
 };
 
+/**
+ * Targeted practice challenges. Add more objects here later — the home UI wraps chips.
+ * promptHint is injected into the roleplay system prompt (subtle, never announced).
+ */
+const CHALLENGES = [
+  {
+    id: "price_objection",
+    label: "Price objection",
+    promptHint: `TARGETED FOCUS — Price sensitivity (subtle, never announce this):
+You have a real concern about price / value / affordability that fits your persona (budget, fees, "too expensive vs alternatives," etc.).
+Do NOT open with a price objection or say you are here to practice objections.
+Let rapport and the deal context develop first (several exchanges). Only raise price-related pushback when the agent discusses numbers, options, next steps, or tries to advance the sale — the way a real client would.
+Keep returning to value/price tension naturally if they brush it off; don't drop it after one line.`,
+  },
+  {
+    id: "rejection",
+    label: "Rejection",
+    promptHint: `TARGETED FOCUS — Rejection / disengagement (subtle, never announce this):
+You are inclined to shut this down or walk away if the agent feels pushy, vague, or not useful — consistent with your personality.
+Do NOT open by rejecting them or saying you want to leave.
+Give a normal opening for the Setting. After a few turns, show growing reluctance (short answers, skepticism, "not sure this is for me," checking the time). If they don't earn your interest, escalate toward ending the conversation — as a real prospect would, not as a dramatic script.`,
+  },
+  {
+    id: "ask_commitment",
+    label: "Ask for commitment",
+    promptHint: `TARGETED FOCUS — Commitment hesitation (subtle, never announce this):
+You are interested enough to keep talking, but you resist committing (viewing, signing, next meeting, "yes let's proceed") without feeling ready.
+Do NOT open by announcing you won't commit.
+Engage normally first. When the agent asks for a clear next step or commitment, hesitate, defer ("I need to think," "let me check with…," "send me details first"), or set soft conditions. Stay in character — warm or firm per your DISC — but make earning a real commitment the hard part.`,
+  },
+];
+
 // id, grade, name, age, occupation, nationality, edu, disc, badExp, badExpReason, needLevel, lifeStage, field1, field2, field3, notes
 const PROPERTY_PERSONAS = [
   ["P01","Easy","Grace Teo",34,"Marketing Executive","Singaporean","Bachelor's Degree","I","No","No — no significant negative past experience with agents","High (actively searching now)","Young family, kids under 12","$1,200,000","Owns 1 HDB flat (MOP cleared)","Condo (private, non-landed)",""],
@@ -231,6 +263,7 @@ export {
   PROPERTY_AIMS,
   FP_AIMS,
   FIELD_LABELS,
+  CHALLENGES,
   PROPERTY_PERSONAS,
   FP_PERSONAS,
   toPersonaObj,

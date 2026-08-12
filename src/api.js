@@ -22,8 +22,8 @@ async function callGemini(systemPrompt, messages) {
   } catch {
     throw new Error(
       "AI API returned an empty or invalid response. " +
-        "If you're on localhost, use `vercel dev` (not only `npm run dev`) so /api/gemini runs, " +
-        "or test on the live Vercel site. Also check GEMINI_API_KEY / LLM_PROVIDER."
+        "Check GEMINI_API_KEY in .env, then restart `npm run dev`. " +
+        "On the live site, set GEMINI_API_KEY in the host's environment variables."
     );
   }
   if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);

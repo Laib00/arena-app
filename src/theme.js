@@ -5,7 +5,7 @@ export const ACCENT = "#FD8841";
 export const ACCENT_TINT = "#FFF4EC";
 /** Legacy alias — app screens still import GOLD. Prefer ACCENT in new code. */
 export const GOLD = ACCENT;
-export const CREAM = "#F7F4EE";
+export const CREAM = "#F7F5F2";
 
 export const GRADE_COLOR = {
   Easy: "#4C8F5F",
@@ -30,12 +30,35 @@ export const ARENA_RESPONSIVE_CSS = `
     padding: 14px 24px;
     font-size: 13px;
     color: #6B7280;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #F7F5F2;
+    border-bottom: 1px solid rgba(226, 223, 214, 0.9);
+    box-shadow: 0 1px 0 rgba(10, 22, 40, 0.04);
   }
   .arena-topbar-actions {
     display: flex;
     align-items: center;
     gap: 14px;
     margin-left: auto;
+  }
+  .arena-topbar-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #55606F;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    padding: 0;
+    transition: color 0.15s ease;
+  }
+  .arena-topbar-link:hover {
+    color: #0A1628;
   }
 
   .arena-sidebar-inner {
@@ -90,13 +113,14 @@ export const ARENA_RESPONSIVE_CSS = `
   }
 
   .arena-page-header {
-    background: #0A1628;
-    color: #fff;
+    background: #fff;
+    color: #0A1628;
     padding: 14px 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
+    border-bottom: 1px solid rgba(226, 223, 214, 0.9);
   }
   .arena-page-header-left {
     display: flex;
@@ -144,6 +168,34 @@ export const ARENA_RESPONSIVE_CSS = `
     display: flex;
     gap: 8px;
     margin-bottom: 14px;
+  }
+
+  .arena-practice-modal {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(10, 22, 40, 0.22) transparent;
+  }
+  .arena-practice-modal::-webkit-scrollbar {
+    width: 6px;
+  }
+  .arena-practice-modal::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 12px 0;
+  }
+  .arena-practice-modal::-webkit-scrollbar-thumb {
+    background: rgba(10, 22, 40, 0.2);
+    border-radius: 999px;
+  }
+  .arena-practice-modal::-webkit-scrollbar-thumb:hover {
+    background: rgba(253, 136, 65, 0.55);
+  }
+
+  @media (max-width: 900px) {
+    .arena-home-practice-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .arena-home-bottom-grid {
+      grid-template-columns: 1fr !important;
+    }
   }
 
   @media (max-width: 768px) {
