@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { ReflectionAnswersView } from "../SessionDebrief";
-import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
+import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
 import GradeBadge from "../components/GradeBadge";
 
 export default function SessionHistory({ profile, scope, onBack, onSignOut, onContinue }) {
@@ -89,7 +89,7 @@ export default function SessionHistory({ profile, scope, onBack, onSignOut, onCo
                 key={c.id}
                 style={{
                   padding: "14px 18px", borderBottom: "1px solid #F0EEE7",
-                  background: selected === c.id ? "#FFFBEF" : "#fff",
+                  background: selected === c.id ? ACCENT_TINT : "#fff",
                 }}
               >
                 <button

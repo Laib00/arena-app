@@ -3,8 +3,7 @@ import { X, ArrowRight, Sparkles } from "lucide-react";
 import { DISC } from "./constants";
 import { buildEvalPrompt } from "./prompts";
 
-const NAVY = "#0A1628";
-const GOLD = "#D4AF37";
+import { NAVY, ACCENT as GOLD } from "./theme";
 
 /** Parse OVERALL / STRENGTHS / … blocks from AI suggestions text. */
 export function parseEvalSections(text) {
@@ -39,6 +38,7 @@ export function parseEvalSections(text) {
   }
   return sections;
 }
+import { NAVY, ACCENT as GOLD } from "./theme";
 
 export function buildClientFeedbackPrompt(himself, client, aim, setting) {
   return `You are roleplaying as the client "${client.name}" from a sales practice session — not as a coach or trainer.

@@ -1,7 +1,10 @@
 import React from "react";
 
 export const NAVY = "#0A1628";
-export const GOLD = "#D4AF37";
+export const ACCENT = "#FD8841";
+export const ACCENT_TINT = "#FFF4EC";
+/** Legacy alias — app screens still import GOLD. Prefer ACCENT in new code. */
+export const GOLD = ACCENT;
 export const CREAM = "#F7F4EE";
 
 export const GRADE_COLOR = {

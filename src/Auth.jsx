@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
-
-const NAVY = "#0A1628";
-const GOLD = "#D4AF37";
-const CREAM = "#F7F4EE";
+import { NAVY, ACCENT as GOLD, CREAM } from "./theme";
 
 export default function Auth() {
   const [mode, setMode] = useState("login"); // login | signup

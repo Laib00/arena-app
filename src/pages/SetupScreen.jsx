@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { NAVY, GOLD } from "../theme";
+import { NAVY, GOLD, ACCENT_TINT } from "../theme";
 import { SETTINGS, GRADE_ORDER } from "../data/personas";
 import GradeBadge from "../components/GradeBadge";
 import IndustryDisplay from "../components/IndustryDisplay";
@@ -67,7 +67,7 @@ export default function SetupScreen({
           <div
             style={{
               display: "inline-block", textAlign: "left", padding: "12px 14px", borderRadius: 10,
-              border: `2px solid ${GOLD}`, background: "#FFFBEF", boxShadow: "0 2px 8px rgba(212,175,55,0.25)",
+              border: `2px solid ${GOLD}`, background: ACCENT_TINT, boxShadow: "0 2px 8px rgba(253,136,65,0.25)",
               minWidth: 200,
             }}
           >
@@ -94,8 +94,8 @@ export default function SetupScreen({
                     style={{
                       position: "relative", textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
                       border: selected ? `2px solid ${GOLD}` : met ? "1px solid #4C8F5F" : "1px solid #E2DFD6",
-                      background: selected ? "#FFFBEF" : "#fff",
-                      boxShadow: selected ? "0 2px 8px rgba(212,175,55,0.25)" : "none",
+                      background: selected ? ACCENT_TINT : "#fff",
+                      boxShadow: selected ? "0 2px 8px rgba(253,136,65,0.25)" : "none",
                     }}
                   >
                     {met && (

@@ -62,7 +62,7 @@ export default function Sidebar({
                 className="arena-sidebar-item"
                 style={{
                   display: "flex", alignItems: "center", gap: 4, marginBottom: 3, borderRadius: 7,
-                  background: active ? "rgba(212,175,55,0.18)" : "transparent",
+                  background: active ? "rgba(253,136,65,0.18)" : "transparent",
                 }}
               >
                 <button
