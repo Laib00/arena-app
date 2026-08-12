@@ -38,7 +38,8 @@ export function parseEvalSections(text) {
   }
   return sections;
 }
-import { NAVY, ACCENT as GOLD } from "./theme";
+
+
 
 export function buildClientFeedbackPrompt(himself, client, aim, setting) {
   return `You are roleplaying as the client "${client.name}" from a sales practice session — not as a coach or trainer.
