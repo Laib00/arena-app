@@ -1,10 +1,16 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
 import { NAVY, ACCENT as GOLD, CREAM } from "./theme";
 
 export default function Auth() {
-  const [mode, setMode] = useState("login"); // login | signup
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState(
+    searchParams.get("signup") === "1" || searchParams.get("mode") === "signup"
+      ? "signup"
+      : "login"
+  ); // login | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");

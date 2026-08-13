@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import TrueFocus from "../../components/TrueFocus/TrueFocus";
 import SpecularButton from "../../components/SpecularButton/SpecularButton";
 import MagicRings from "../../components/MagicRings/MagicRings";
@@ -6,6 +7,8 @@ import MagicRings from "../../components/MagicRings/MagicRings";
 const HEADLINE = "Practice. Perform.";
 
 export default function Hero() {
+  const navigate = useNavigate();
+
   return (
     <section className="lp-hero" id="top">
       <div className="lp-hero-bg" aria-hidden="true">
@@ -75,9 +78,7 @@ export default function Hero() {
               followMouse
               proximity={250}
               autoAnimate={false}
-              onClick={() => {
-                document.getElementById("waitlist")?.scrollIntoView({ behavior: "smooth" });
-              }}
+              onClick={() => navigate("/app?signup=1")}
             >
               Enter The Arena
               <span className="lp-hero-cta-mark" aria-hidden="true" />

@@ -24,7 +24,7 @@ const COLUMNS = [
   {
     title: "Company",
     links: [
-      { label: "Get early access", href: "#waitlist" },
+      { label: "Get early access", href: "/app?signup=1" },
       { label: "FAQ", href: "#faq" },
       { label: "hello@arena.app", href: "mailto:hello@arena.app" },
     ],
@@ -49,10 +49,7 @@ export default function Footer() {
               />
               Arena
             </a>
-            <p className="lp-footer-blurb">
-              A practice arena for property agents. The AI plays the client and reports what
-              happened. The coaching stays with your coach.
-            </p>
+            <p className="lp-footer-blurb">Where professionals come to practice.</p>
           </div>
 
           {COLUMNS.map((col) => (
@@ -71,7 +68,7 @@ export default function Footer() {
 
         <div className="lp-footer-bottom">
           <span>© {new Date().getFullYear()} Arena. All rights reserved.</span>
-          <Link to="/app">Log in to Arena</Link>
+          <Link to="/app?signup=1">Log in to Arena</Link>
         </div>
       </div>
     </footer>

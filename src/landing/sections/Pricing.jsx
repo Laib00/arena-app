@@ -1,87 +1,85 @@
 import React from "react";
-import { Check } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  Infinity as InfinityIcon,
+  Target,
+  Diamond,
+  UserRound,
+  Archive,
+  Users,
+} from "lucide-react";
 
-const FOUNDER = [
-  "Unlimited roleplay sessions",
-  "All 16 property personas, plus randomly generated clients",
-  "The full five-step debrief on every session",
-  "Complete session history and transcripts",
-  "Manager dashboard for team leads",
-  "Voice, coaches and video included as they ship — at no extra cost",
-  "Direct line to us on what gets built next",
-];
-
-const STANDARD = [
-  "Everything in the founder plan",
-  "Priced at whatever the product is worth by then",
-  "Available once phase 2 ships",
+const INCLUDED = [
+  { icon: InfinityIcon, label: "Unlimited Practice" },
+  { icon: Target, label: "AI Facts" },
+  { icon: Diamond, label: "Reflection" },
+  { icon: UserRound, label: "Coaching" },
+  { icon: Archive, label: "Session History" },
+  { icon: Users, label: "New Prospects" },
 ];
 
 export default function Pricing() {
   return (
-    <section className="lp-section lp-section--paper" id="pricing">
-      <div className="lp-wrap">
-        <div className="lp-head lp-head--center lp-reveal">
-          <span className="lp-eyebrow">Pricing</span>
-          <h2 className="lp-h2">Founder pricing, locked for good.</h2>
-          <p className="lp-lede">
-            Arena is early, and we're pricing it honestly. Join now and your rate never moves,
-            no matter how much the product grows underneath it.
+    <section className="lp-section lp-section--cream lp-pay-section" id="pricing">
+      <div className="lp-pay-glow lp-pay-glow--left" aria-hidden="true" />
+      <div className="lp-pay-glow lp-pay-glow--right" aria-hidden="true" />
+
+      <div className="lp-wrap lp-pay">
+        <div className="lp-pay-copy lp-reveal">
+          <h2 className="lp-pay-title">
+            Get better before it matters<span>.</span>
+          </h2>
+          <p className="lp-pay-sub">Practice here. Perform out there.</p>
+          <p className="lp-pay-access">
+            <strong>$9/month</strong> founding access.
           </p>
-        </div>
 
-        <div className="lp-prices">
-          <div className="lp-price lp-price--featured lp-reveal">
-            <span className="lp-price-flag">Founder plan</span>
-            <h3 style={{ color: "#fff" }}>Founding member</h3>
-            <p className="lp-price-note">
-              For the first cohort of agents who'll shape what this becomes.
-            </p>
-            <div className="lp-price-amt">
-              <b>$9</b>
-              <span>/month</span>
-              <s>$198</s>
-            </div>
+          <div className="lp-pay-included">
+            <h3>Included with Arena</h3>
             <ul>
-              {FOUNDER.map((f) => (
-                <li key={f}>
-                  <Check size={16} strokeWidth={2.6} />
-                  {f}
+              {INCLUDED.map((item) => (
+                <li key={item.label}>
+                  <item.icon size={28} strokeWidth={1.7} />
+                  <span>{item.label}</span>
                 </li>
               ))}
             </ul>
-            <a className="lp-btn lp-btn--accent" href="#waitlist">
-              Claim founder pricing
-            </a>
-          </div>
-
-          <div className="lp-price lp-reveal">
-            <h3>Standard</h3>
-            <p className="lp-price-note">
-              What Arena will cost once the coaching and voice features land.
-            </p>
-            <div className="lp-price-amt">
-              <b>$198</b>
-              <span>/month</span>
-            </div>
-            <ul>
-              {STANDARD.map((f) => (
-                <li key={f}>
-                  <Check size={16} strokeWidth={2.6} color="#C2410C" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <a className="lp-btn lp-btn--outline" href="#waitlist">
-              Skip this — join now instead
-            </a>
           </div>
         </div>
 
-        <p className="lp-price-foot lp-reveal">
-          That's the actual trade: you tell us where it falls short while it's still early, and
-          we never raise your price.
-        </p>
+        <article className="lp-founder lp-reveal">
+          <div className="lp-founder-hero">
+            <span className="lp-founder-badge">Founder Plan</span>
+            <div className="lp-founder-price">
+              <span className="lp-founder-dollar">$</span>
+              <span className="lp-founder-num">9</span>
+              <span className="lp-founder-cycle">/ month</span>
+            </div>
+            <span className="lp-founder-hero-logo" aria-hidden="true" />
+          </div>
+
+          <p className="lp-founder-desc">Early access to Arena at our founding price.</p>
+
+          <Link className="lp-founder-cta" to="/app?signup=1">
+            Get Started
+            <ArrowRight size={18} strokeWidth={2.4} />
+          </Link>
+
+          <div className="lp-founder-foot">
+            <p className="lp-founder-tagline">
+              Practice. Perform. <span>And then, again.</span>
+            </p>
+            <img
+              className="lp-founder-logo"
+              src="/arena-logo-128.png"
+              alt="Arena"
+              width={36}
+              height={36}
+              decoding="async"
+            />
+          </div>
+        </article>
       </div>
     </section>
   );

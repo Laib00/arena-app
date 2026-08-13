@@ -7,7 +7,6 @@ import MeetThePeople from "./sections/MeetThePeople";
 import Loop from "./sections/Loop";
 import WhoArenaIsFor from "./sections/WhoArenaIsFor";
 import Pricing from "./sections/Pricing";
-import Waitlist from "./sections/Waitlist";
 import Footer from "./sections/Footer";
 
 export default function LandingPage() {
@@ -33,7 +32,6 @@ export default function LandingPage() {
         <Loop />
         <WhoArenaIsFor />
         <Pricing />
-        <Waitlist />
       </main>
       <Footer />
     </div>
