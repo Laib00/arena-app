@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Navigate, matchPath, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 import { formatReflectionForPrompt } from "./SessionDebrief";
@@ -24,10 +25,13 @@ import ProfileScreen from "./pages/ProfileScreen";
 import SessionHistory from "./pages/SessionHistory";
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
   const [profile, setProfile] = useState(null);
-  const [view, setView] = useState("app"); // app | team (manager dashboard)
   const [himselfLoaded, setHimselfLoaded] = useState(false);
+  const wasOnChatRoute = useRef(false);
   const [step, setStep] = useState("setup"); // setup | chat
   const [industry, setIndustry] = useState("Property");
   const [resumeChecked, setResumeChecked] = useState(false);
@@ -54,6 +58,28 @@ export default function App() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Landing CTAs use ?signup=1 — strip once logged in so home stays /app
+  useEffect(() => {
+    if (!session) return;
+    if (!searchParams.has("signup") && !searchParams.has("mode")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("signup");
+    next.delete("mode");
+    setSearchParams(next, { replace: true });
+  }, [session, searchParams, setSearchParams]);
+
+  const goHome = () => navigate("/app");
+  const goHistory = () => navigate("/app/history");
+  const goProfile = () => navigate("/app/profile");
+  const goTeam = () => navigate("/app/team");
+  const goChat = (id) => navigate(`/app/chat/${id}`);
+
+  const chatMatch = matchPath({ path: "/app/chat/:conversationId", end: true }, location.pathname);
+  const routeConvId = chatMatch?.params?.conversationId || null;
+  const isHistory = Boolean(matchPath({ path: "/app/history", end: true }, location.pathname));
+  const isProfile = Boolean(matchPath({ path: "/app/profile", end: true }, location.pathname));
+  const isTeam = Boolean(matchPath({ path: "/app/team", end: true }, location.pathname));
 
   useEffect(() => {
     if (!session) {
@@ -125,6 +151,7 @@ export default function App() {
       setApiMessages([]);
       setConversationId(null);
       setDebriefOpen(false);
+      goHome();
     }
     refreshOpenConversations();
   }
@@ -141,6 +168,7 @@ export default function App() {
       setApiMessages([]);
       setConversationId(null);
       setDebriefOpen(false);
+      goHome();
     }
     refreshOpenConversations();
   }
@@ -203,7 +231,7 @@ export default function App() {
     });
   }
 
-  async function loadConversationIntoState(conv) {
+  async function loadConversationIntoState(conv, { syncUrl = true } = {}) {
     if (!conv || !conv.client_snapshot) return;
 
     const { data: pastMessages } = await supabase
@@ -229,6 +257,7 @@ export default function App() {
     setApiMessages(restored);
     setDebriefOpen(false);
     setStep("chat");
+    if (syncUrl) goChat(conv.id);
   }
 
   // On login, load open (not-yet-ended) conversations into the sidebar.
@@ -355,6 +384,7 @@ export default function App() {
       if (dbErr) throw dbErr;
       newConversationId = data.id;
       setConversationId(newConversationId);
+      goChat(newConversationId);
       refreshOpenConversations();
       refreshMetPersonas();
     } catch (e) {
@@ -382,6 +412,7 @@ export default function App() {
           if (!dbErr2) {
             newConversationId = data.id;
             setConversationId(newConversationId);
+            goChat(newConversationId);
             refreshOpenConversations();
             refreshMetPersonas();
           }
@@ -516,7 +547,52 @@ export default function App() {
     setConversationId(null);
     setChallenge(null);
     refreshRecentSessions();
+    goHome();
   }
+
+  // Keep chat UI in sync with /app/chat/:id (load on refresh, clear when leaving)
+  useEffect(() => {
+    if (!resumeChecked || !profile) return;
+
+    if (routeConvId) {
+      wasOnChatRoute.current = true;
+      if (conversationId === routeConvId && step === "chat") return;
+
+      let cancelled = false;
+      (async () => {
+        let conv = openConversations.find((c) => c.id === routeConvId);
+        if (!conv) {
+          const { data } = await supabase
+            .from("conversations")
+            .select("*")
+            .eq("id", routeConvId)
+            .eq("user_id", profile.id)
+            .maybeSingle();
+          conv = data;
+        }
+        if (cancelled) return;
+        if (conv?.client_snapshot) {
+          await loadConversationIntoState(conv, { syncUrl: false });
+        } else {
+          navigate("/app", { replace: true });
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+
+    if (wasOnChatRoute.current) {
+      wasOnChatRoute.current = false;
+      if (step === "chat") {
+        setStep("setup");
+        setDisplayMessages([]);
+        setApiMessages([]);
+        setConversationId(null);
+        setDebriefOpen(false);
+        setChallenge(null);
+        setError(null);
+      }
+    }
+  }, [routeConvId, resumeChecked, profile?.id]);
 
   const canStart = Boolean(client && aim && setting);
 
@@ -540,34 +616,36 @@ export default function App() {
     );
   }
 
-  if (view === "team" && profile?.role === "manager") {
+  if (isTeam) {
+    if (profile?.role !== "manager") {
+      return <Navigate to="/app" replace />;
+    }
     return (
       <>
         <ResponsiveStyles />
-        <SessionHistory profile={profile} scope="team" onBack={() => setView("app")} onSignOut={() => supabase.auth.signOut()} />
+        <SessionHistory profile={profile} scope="team" onBack={goHome} onSignOut={() => supabase.auth.signOut()} />
       </>
     );
   }
 
-  if (view === "history") {
+  if (isHistory) {
     return (
       <>
         <ResponsiveStyles />
         <SessionHistory
           profile={profile}
           scope="mine"
-          onBack={() => setView("app")}
+          onBack={goHome}
           onSignOut={() => supabase.auth.signOut()}
           onContinue={async (conv) => {
             await loadConversationIntoState(conv);
-            setView("app");
           }}
         />
       </>
     );
   }
 
-  if (view === "profile") {
+  if (isProfile) {
     return (
       <>
         <ResponsiveStyles />
@@ -578,11 +656,16 @@ export default function App() {
           industry={industry}
           openChatCount={openConversations.length}
           onSave={persistAgentProfile}
-          onBack={() => setView("app")}
+          onBack={goHome}
           onSignOut={() => supabase.auth.signOut()}
         />
       </>
     );
+  }
+
+  // Unknown /app/* paths → home
+  if (!chatMatch && location.pathname !== "/app" && location.pathname !== "/app/") {
+    return <Navigate to="/app" replace />;
   }
 
   return (
@@ -598,9 +681,10 @@ export default function App() {
           onCloseChat={closeOpenConversation}
           onDelete={deleteConversation}
           onClose={() => setSidebarOpen(false)}
-          onProfileView={() => { setView("profile"); setSidebarOpen(false); }}
-          onHistoryView={() => { setView("history"); setSidebarOpen(false); }}
-          onTeamView={() => { setView("team"); setSidebarOpen(false); }}
+          onHomeView={() => { goHome(); setSidebarOpen(false); }}
+          onProfileView={() => { goProfile(); setSidebarOpen(false); }}
+          onHistoryView={() => { goHistory(); setSidebarOpen(false); }}
+          onTeamView={() => { goTeam(); setSidebarOpen(false); }}
           onSignOut={() => supabase.auth.signOut()}
         />
       </div>
@@ -609,10 +693,10 @@ export default function App() {
           <TopBar
             profile={profile}
             onSignOut={() => supabase.auth.signOut()}
-            onTeamView={() => setView("team")}
-            onHistoryView={() => setView("history")}
-            onProfileView={() => setView("profile")}
-            onHomeView={() => setView("app")}
+            onTeamView={goTeam}
+            onHistoryView={goHistory}
+            onProfileView={goProfile}
+            onHomeView={goHome}
             onProgressClick={() => {
               document.getElementById("arena-progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
@@ -624,7 +708,7 @@ export default function App() {
             industry={industry}
             switchIndustry={switchIndustry}
             himself={himself}
-            onEditProfile={() => setView("profile")}
+            onEditProfile={goProfile}
             industryPersonas={industryPersonas}
             metPersonaIds={metPersonaIds}
             clientId={clientId}
@@ -643,7 +727,7 @@ export default function App() {
             onStartChallenge={startTargetedChallenge}
             recentSessions={recentSessions}
             onReplay={replaySession}
-            onViewHistory={() => setView("history")}
+            onViewHistory={goHistory}
           />
         ) : (
           <ChatScreen

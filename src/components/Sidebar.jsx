@@ -6,7 +6,7 @@ import GradeBadge from "./GradeBadge";
 export default function Sidebar({
   openConversations, activeId, profile,
   onSelect, onCloseChat, onDelete, onClose,
-  onProfileView, onHistoryView, onTeamView, onSignOut,
+  onHomeView, onProfileView, onHistoryView, onTeamView, onSignOut,
 }) {
   const [pendingRemove, setPendingRemove] = useState(null); // conversation row or null
 
@@ -31,7 +31,15 @@ export default function Sidebar({
     <div className="arena-sidebar-inner">
       <div style={{ padding: "18px 16px 14px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => navAction(onHomeView || (() => {}))}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit",
+            }}
+            aria-label="Home"
+          >
             <img
               src="/arena-logo-128.png"
               alt=""
@@ -41,7 +49,7 @@ export default function Sidebar({
               style={{ display: "block", flexShrink: 0 }}
             />
             <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>Arena</span>
-          </div>
+          </button>
           <button
             onClick={onClose}
             className="arena-menu-toggle"

@@ -9,7 +9,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/app" element={<App />} />
+        <Route path="/app/*" element={<App />} />
         <Route path="/login" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
