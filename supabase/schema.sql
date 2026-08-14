@@ -38,6 +38,12 @@ create policy "users can update own profile"
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
+drop policy if exists "users can insert own profile" on public.profiles;
+create policy "users can insert own profile"
+  on public.profiles for insert
+  to authenticated
+  with check (auth.uid() = id);
+
 -- Role changes must go through a service role (e.g. a manager promoting
 -- someone via the SQL editor), never through a normal user-facing update.
 -- Enforced here with a trigger instead of an RLS WITH CHECK subquery,

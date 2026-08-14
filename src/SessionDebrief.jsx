@@ -380,9 +380,9 @@ export default function SessionDebrief({
         <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 18 }}>
           Session with {client.name}
           {step === "reflection" && " — your view first, before seeing how the client felt"}
-          {step === "feedback" && " — how the client felt (not coaching)"}
+          {step === "feedback" && " — how the client felt"}
           {step === "reflection_update" && " — compare your first reflection with the client's feedback"}
-          {step === "facts" && " — observations only, no advice"}
+          {step === "facts" && " — observations"}
           {step === "suggestions" && " — coaching tips based on this session"}
         </p>
 

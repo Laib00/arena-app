@@ -69,7 +69,7 @@ export default function Auth() {
     try {
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: `${window.location.origin}/app` },
       });
       if (err) throw err;
     } catch (err) {
@@ -135,9 +135,6 @@ export default function Auth() {
                   border: `2px solid ${NAVY}`, background: NAVY, color: "#fff",
                 }}>
                   Property
-                </div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>
-                  Financial Planning coming later — Phase 1 focuses on property agents.
                 </div>
               </div>
 

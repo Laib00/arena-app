@@ -5,7 +5,19 @@ import { ENABLE_FINANCIAL_PLANNING } from "../data/personas";
 import Field from "../components/Field";
 import PageHeader from "../components/PageHeader";
 
-export default function ProfileScreen({ profile, himself, himselfLoaded, industry, openChatCount = 0, onSave, onBack, onSignOut }) {
+export default function ProfileScreen({
+  profile,
+  himself,
+  himselfLoaded,
+  industry,
+  openChatCount = 0,
+  onSave,
+  onBack,
+  onSignOut,
+  mode = "edit",
+  onComplete,
+}) {
+  const isOnboarding = mode === "onboarding";
   const [form, setForm] = useState(himself);
   const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -19,7 +31,7 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
   formRef.current = form;
   dirtyRef.current = dirty;
 
-  const hasOpenChats = openChatCount > 0;
+  const hasOpenChats = !isOnboarding && openChatCount > 0;
 
   // Don't let the form initialize from stale defaults if this screen is
   // opened before the real saved profile has finished loading.
@@ -62,18 +74,28 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
     }
   }
 
-  // Auto-save shortly after the user edits a field.
+  // Auto-save shortly after the user edits a field (edit mode only).
   useEffect(() => {
-    if (!initialized || !dirty) return;
+    if (isOnboarding || !initialized || !dirty) return;
     const timeout = setTimeout(() => persist(form), 800);
     return () => clearTimeout(timeout);
-  }, [form, initialized, dirty]);
+  }, [form, initialized, dirty, isOnboarding]);
 
   async function handleSave() {
     await persist(form);
   }
 
+  async function handleContinue() {
+    if (!String(form.name || "").trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    const ok = await persist(form);
+    if (ok && onComplete) onComplete();
+  }
+
   async function handleBack() {
+    if (isOnboarding) return;
     if (dirtyRef.current) {
       const ok = await persist(formRef.current);
       if (!ok) return;
@@ -92,12 +114,14 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
   return (
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
       <PageHeader
-        brand="back"
-        onHome={handleBack}
-        title="Your Profile"
+        brand={isOnboarding ? "logo" : "back"}
+        onHome={isOnboarding ? undefined : handleBack}
+        title={isOnboarding ? "Complete your profile" : "Your Profile"}
         actions={
           <>
-            <button type="button" onClick={handleBack} className="arena-topbar-link">Home</button>
+            {!isOnboarding && (
+              <button type="button" onClick={handleBack} className="arena-topbar-link">Home</button>
+            )}
             <button type="button" onClick={onSignOut} className="arena-topbar-link">Sign Out</button>
           </>
         }
@@ -105,10 +129,14 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: isOnboarding ? 8 : 16 }}>
           Industry: <span style={{ fontWeight: 700, color: NAVY }}>{!ENABLE_FINANCIAL_PLANNING || industry === "Property" ? "Property" : "Financial Planning"}</span>
-          <span style={{ color: "#9CA3AF" }}> — change this from the setup screen</span>
         </p>
+        {isOnboarding && (
+          <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 16 }}>
+            Tell us about yourself as an agent so practice sessions can match you.
+          </p>
+        )}
 
         {hasOpenChats && (
           <div
@@ -197,17 +225,33 @@ export default function ProfileScreen({ profile, himself, himselfLoaded, industr
 
         {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginTop: 16 }}>{error}</div>}
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            marginTop: 20, padding: "12px 24px", borderRadius: 8, border: "none",
-            background: GOLD, color: NAVY, fontWeight: 700, fontSize: 14,
-            cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? "Saving..." : saved ? "Saved ✓" : "Save Profile"}
-        </button>
+        {isOnboarding ? (
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={saving}
+            style={{
+              marginTop: 20, padding: "12px 24px", borderRadius: 8, border: "none",
+              background: GOLD, color: "#fff", fontWeight: 700, fontSize: 14,
+              cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? "Saving..." : "Continue"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              marginTop: 20, padding: "12px 24px", borderRadius: 8, border: "none",
+              background: GOLD, color: NAVY, fontWeight: 700, fontSize: 14,
+              cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? "Saving..." : saved ? "Saved ✓" : "Save Profile"}
+          </button>
+        )}
       </div>
     </div>
   );

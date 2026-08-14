@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 import { formatReflectionForPrompt } from "./SessionDebrief";
 import { CERTIFICATIONS } from "./constants";
-import { NAVY, CREAM, ResponsiveStyles } from "./theme";
+import { NAVY, CREAM, GOLD, ResponsiveStyles } from "./theme";
 import {
   ENABLE_FINANCIAL_PLANNING,
   SETTINGS,
@@ -84,19 +84,65 @@ export default function App() {
   useEffect(() => {
     if (!session) {
       setProfile(null);
+      setHimselfLoaded(false);
+      setResumeChecked(false);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data, error }) => {
+
+    let cancelled = false;
+    setHimselfLoaded(false);
+
+    (async () => {
+      try {
+        let { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
         if (error) {
           console.error("Failed to load profile:", error.message);
+        }
+
+        // Google signup (or profile deleted manually): recreate missing row
+        if (!data) {
+          const { data: ensured, error: ensureErr } = await supabase.rpc("ensure_own_profile");
+          if (ensureErr) {
+            console.error("ensure_own_profile failed:", ensureErr.message);
+            // Fallback if RPC not deployed yet
+            const meta = session.user.user_metadata || {};
+            const fullName = meta.full_name || meta.name || session.user.email || "";
+            const { data: created, error: insertErr } = await supabase
+              .from("profiles")
+              .upsert(
+                {
+                  id: session.user.id,
+                  email: session.user.email,
+                  full_name: fullName,
+                  industry: "Property",
+                },
+                { onConflict: "id" }
+              )
+              .select("*")
+              .maybeSingle();
+            if (insertErr) {
+              console.error("Failed to create profile:", insertErr.message);
+            } else {
+              data = created;
+            }
+          } else {
+            data = Array.isArray(ensured) ? ensured[0] : ensured;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (!data) {
+          setProfile(null);
           setHimselfLoaded(true);
           return;
         }
+
         setProfile(data);
         const ind = (!ENABLE_FINANCIAL_PLANNING || data?.industry !== "Financial Planning")
           ? "Property"
@@ -113,8 +159,17 @@ export default function App() {
           });
         }
         setHimselfLoaded(true);
-      });
-  }, [session]);
+      } catch (e) {
+        console.error("Profile bootstrap failed:", e);
+        if (!cancelled) {
+          setProfile(null);
+          setHimselfLoaded(true);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
 
   async function refreshOpenConversations() {
     if (!profile) return;
@@ -608,7 +663,60 @@ export default function App() {
     return <Auth />;
   }
 
-  if (session && profile && !resumeChecked) {
+  if (!himselfLoaded) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div style={{
+        minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif", gap: 12, padding: 24, textAlign: "center",
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>Couldn&apos;t load your profile</div>
+        <div style={{ fontSize: 13, color: "#6B7280", maxWidth: 360 }}>
+          Your Google account signed in, but we couldn&apos;t create or read your Arena profile. Try again, or sign out and use email signup.
+        </div>
+        <button
+          type="button"
+          onClick={() => supabase.auth.signOut()}
+          style={{
+            marginTop: 8, padding: "10px 18px", borderRadius: 8, border: "none",
+            background: GOLD, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
+          }}
+        >
+          Sign Out
+        </button>
+      </div>
+    );
+  }
+
+  // Google (and any account without saved agent_profile) must complete profile once
+  const needsProfileSetup = !profile.agent_profile;
+  if (needsProfileSetup) {
+    return (
+      <>
+        <ResponsiveStyles />
+        <ProfileScreen
+          mode="onboarding"
+          profile={profile}
+          himself={himself}
+          himselfLoaded={himselfLoaded}
+          industry={industry}
+          openChatCount={0}
+          onSave={persistAgentProfile}
+          onComplete={() => navigate("/app", { replace: true })}
+          onSignOut={() => supabase.auth.signOut()}
+        />
+      </>
+    );
+  }
+
+  if (!resumeChecked) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
         Loading...

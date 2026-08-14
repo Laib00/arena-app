@@ -211,10 +211,7 @@ function PracticeSetupModal({
         </div>
 
         <SectionLabel n="4" title="Challenge (optional)" />
-        <p style={{ color: "#6B7280", fontSize: 13, marginTop: -6, marginBottom: 12 }}>
-          Leave unselected for a normal open practice. Or pick one focus — the client will raise it naturally, not in the first line.
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28, marginTop: -6 }}>
           <button
             type="button"
             onClick={() => setChallenge(null)}
