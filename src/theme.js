@@ -43,6 +43,9 @@ export const ARENA_RESPONSIVE_CSS = `
     gap: 14px;
     margin-left: auto;
   }
+  .arena-topbar-brand-mobile {
+    display: none;
+  }
   .arena-topbar-link {
     background: none;
     border: none;
@@ -189,6 +192,34 @@ export const ARENA_RESPONSIVE_CSS = `
     background: rgba(253, 136, 65, 0.55);
   }
 
+  .arena-open-practice-cta {
+    isolation: isolate;
+  }
+  .arena-open-practice-ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(253, 136, 65, 0.7);
+    box-sizing: border-box;
+    pointer-events: none;
+    animation: arenaOpenPracticeRipple 2.4s ease-out infinite;
+  }
+  .arena-open-practice-ripple--delay {
+    animation-delay: 1.2s;
+  }
+  @keyframes arenaOpenPracticeRipple {
+    0% {
+      transform: scale(1);
+      opacity: 0.75;
+      border-color: rgba(253, 136, 65, 0.85);
+    }
+    100% {
+      transform: scale(4.2);
+      opacity: 0;
+      border-color: rgba(253, 136, 65, 0.15);
+    }
+  }
+
   @media (max-width: 900px) {
     .arena-home-practice-grid {
       grid-template-columns: 1fr !important;
@@ -219,6 +250,7 @@ export const ARENA_RESPONSIVE_CSS = `
     .arena-menu-toggle { display: flex !important; }
     .arena-sidebar-nav { display: block; }
     .arena-topbar-desktop-nav { display: none !important; }
+    .arena-topbar-brand-mobile { display: flex !important; align-items: center; }
     .arena-agent-grid { grid-template-columns: 1fr !important; }
     .arena-setup-wrap { padding: 24px 14px 60px !important; }
     .arena-profile-grid { grid-template-columns: 1fr !important; }

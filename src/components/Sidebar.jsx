@@ -32,8 +32,15 @@ export default function Sidebar({
       <div style={{ padding: "18px 16px 14px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
-            <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>THE ARENA</span>
+            <img
+              src="/arena-logo-128.png"
+              alt=""
+              width={22}
+              height={22}
+              decoding="async"
+              style={{ display: "block", flexShrink: 0 }}
+            />
+            <span style={{ fontFamily: "Georgia, serif", fontSize: 15, letterSpacing: 0.5 }}>Arena</span>
           </div>
           <button
             onClick={onClose}

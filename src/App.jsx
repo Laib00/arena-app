@@ -15,6 +15,7 @@ import {
 import { buildSystemPrompt } from "./prompts";
 import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
+import { computePracticeStreak } from "./streak";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import SetupScreen from "./pages/SetupScreen";
@@ -158,7 +159,7 @@ export default function App() {
   const [aimKey, setAimKey] = useState(null);
   const [settingKey, setSettingKey] = useState(SETTINGS[0].key);
   const [challenge, setChallenge] = useState(null);
-  const [recentSessions, setRecentSessions] = useState({ items: [], totalEndedCount: 0 });
+  const [recentSessions, setRecentSessions] = useState({ items: [], totalEndedCount: 0, practiceStreak: 0 });
 
   const [displayMessages, setDisplayMessages] = useState([]);
   const [apiMessages, setApiMessages] = useState([]);
@@ -173,19 +174,33 @@ export default function App() {
 
   async function refreshRecentSessions() {
     if (!profile) return;
-    const { data: ended } = await supabase
-      .from("conversations")
-      .select("*")
-      .eq("user_id", profile.id)
-      .not("ended_at", "is", null)
-      .order("ended_at", { ascending: false })
-      .limit(3);
-    const { count } = await supabase
-      .from("conversations")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", profile.id)
-      .not("ended_at", "is", null);
-    setRecentSessions({ items: ended || [], totalEndedCount: count || 0 });
+    const [{ data: ended }, { count }, { data: endedDates }] = await Promise.all([
+      supabase
+        .from("conversations")
+        .select("*")
+        .eq("user_id", profile.id)
+        .not("ended_at", "is", null)
+        .order("ended_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("conversations")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", profile.id)
+        .not("ended_at", "is", null),
+      supabase
+        .from("conversations")
+        .select("ended_at")
+        .eq("user_id", profile.id)
+        .not("ended_at", "is", null)
+        .order("ended_at", { ascending: false })
+        .limit(400),
+    ]);
+    const practiceStreak = computePracticeStreak((endedDates || []).map((r) => r.ended_at));
+    setRecentSessions({
+      items: ended || [],
+      totalEndedCount: count || 0,
+      practiceStreak,
+    });
   }
 
   async function loadConversationIntoState(conv) {

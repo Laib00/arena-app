@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { ReflectionAnswersView } from "../SessionDebrief";
 import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";

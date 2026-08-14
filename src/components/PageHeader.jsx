@@ -1,5 +1,5 @@
 import { Menu, ArrowLeft } from "lucide-react";
-import { NAVY, GOLD } from "../theme";
+import { NAVY } from "../theme";
 
 export function ArenaLogo({ onClick }) {
   return (
@@ -8,9 +8,14 @@ export function ArenaLogo({ onClick }) {
       onClick={onClick}
       style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
     >
-      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: `2px solid ${GOLD}` }}>
-        <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
-      </div>
+      <img
+        src="/arena-logo-128.png"
+        alt=""
+        width={30}
+        height={30}
+        decoding="async"
+        style={{ display: "block", flexShrink: 0 }}
+      />
       <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, color: NAVY, fontWeight: 700 }}>Arena</span>
     </button>
   );

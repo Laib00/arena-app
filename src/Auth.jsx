@@ -87,10 +87,15 @@ export default function Auth() {
     >
       <div style={{ width: "100%", maxWidth: mode === "signup" ? 460 : 380, padding: 32 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 48, height: 48, borderRadius: "50%", border: `2px solid ${GOLD}`, marginBottom: 12 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", border: `2px solid ${GOLD}` }} />
-          </div>
-          <h1 style={{ fontFamily: "Georgia, serif", fontSize: 26, margin: 0, color: NAVY }}>THE ARENA</h1>
+          <img
+            src="/arena-logo-128.png"
+            alt=""
+            width={48}
+            height={48}
+            decoding="async"
+            style={{ display: "block", margin: "0 auto 12px" }}
+          />
+          <h1 style={{ fontFamily: "Georgia, serif", fontSize: 26, margin: 0, color: NAVY }}>Arena</h1>
           <p style={{ color: "#6B7280", fontSize: 13, marginTop: 6 }}>
             {mode === "login" ? "Log in to continue" : "Create your account"}
           </p>

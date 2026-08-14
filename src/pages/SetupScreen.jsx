@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Flame, Lock, Phone, RotateCcw, Zap, X } from "lucide-react";
 import { NAVY, GOLD, CREAM } from "../theme";
 import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
+import { formatStreakLabel } from "../streak";
 import GradeBadge from "../components/GradeBadge";
 import IndustryDisplay from "../components/IndustryDisplay";
 import SectionLabel from "../components/SectionLabel";
@@ -271,6 +272,7 @@ export default function SetupScreen({
   const [modalOpen, setModalOpen] = useState(false);
 
   const rounds = recentSessions?.totalEndedCount ?? 0;
+  const practiceStreak = recentSessions?.practiceStreak ?? 0;
 
   function openPracticeModal() {
     setChallenge(null);
@@ -291,7 +293,7 @@ export default function SetupScreen({
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "#fff", border: "1px solid #E8E4DC" }}>
           <Flame size={18} color={GOLD} fill={GOLD} />
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>— days</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{formatStreakLabel(practiceStreak)}</div>
             <div style={{ fontSize: 11, color: "#6B7280" }}>Current practice streak</div>
           </div>
         </div>
@@ -306,16 +308,13 @@ export default function SetupScreen({
         <button
           type="button"
           onClick={openPracticeModal}
+          className="arena-open-practice-card"
           style={{
             textAlign: "left", border: "none", cursor: "pointer", borderRadius: 18, padding: 28,
             background: NAVY, color: "#fff", position: "relative", overflow: "hidden", minHeight: 220,
             display: "flex", flexDirection: "column",
           }}
         >
-          <div style={{
-            position: "absolute", right: -40, bottom: -50, width: 180, height: 180, borderRadius: "50%",
-            border: `28px solid ${GOLD}`, opacity: 0.35, pointerEvents: "none",
-          }} />
           <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 12 }}>
             Recommended · Open practice
           </div>
@@ -325,11 +324,14 @@ export default function SetupScreen({
           <p style={{ fontSize: 14, color: "rgba(255,255,255,0.72)", lineHeight: 1.55, margin: 0, maxWidth: 320 }}>
             Meet a realistic prospect with their own needs, fears and objections. Your job is to discover them and move the conversation forward.
           </p>
-          <div style={{
+          <div className="arena-open-practice-cta" style={{
             marginTop: "auto", alignSelf: "flex-end", width: 44, height: 44, borderRadius: "50%",
             background: GOLD, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+            position: "relative", zIndex: 1,
           }}>
-            <ArrowRight size={20} />
+            <span className="arena-open-practice-ripple" aria-hidden="true" />
+            <span className="arena-open-practice-ripple arena-open-practice-ripple--delay" aria-hidden="true" />
+            <ArrowRight size={20} style={{ position: "relative", zIndex: 1 }} />
           </div>
         </button>
 

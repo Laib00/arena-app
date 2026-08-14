@@ -30,10 +30,12 @@ export default function TopBar({
         <Menu size={20} />
       </button>
 
-      <ArenaLogo onClick={onHomeView} />
+      {/* Logo only on mobile — desktop already has it in the sidebar */}
+      <div className="arena-topbar-brand-mobile">
+        <ArenaLogo onClick={onHomeView} />
+      </div>
 
       <div className="arena-topbar-actions arena-topbar-desktop-nav">
-        <button type="button" onClick={onHomeView} className="arena-topbar-link">Home</button>
         <button type="button" onClick={onProgressClick} className="arena-topbar-link">Progress</button>
         <button type="button" onClick={onHistoryView} className="arena-topbar-link">History</button>
         {profile?.role === "manager" && (
