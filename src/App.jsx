@@ -491,8 +491,14 @@ export default function App() {
     }
   }
 
-  async function startRoleplay() {
-    await startRoleplayWith({ client, aim, setting, challenge, himself });
+  async function startRoleplay(nextChallenge) {
+    await startRoleplayWith({
+      client,
+      aim,
+      setting,
+      challenge: nextChallenge !== undefined ? nextChallenge : challenge,
+      himself,
+    });
   }
 
   async function startTargetedChallenge(ch) {

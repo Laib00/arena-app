@@ -220,6 +220,301 @@ export const ARENA_RESPONSIVE_CSS = `
     }
   }
 
+  .arena-wizard-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin: 0 0 10px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6B7280;
+    font-weight: 600;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .arena-wizard-back:hover {
+    color: #0A1628;
+  }
+
+  .arena-wizard-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+  .arena-wizard-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #E2DFD6;
+  }
+  .arena-wizard-dot.is-on {
+    background: #FD8841;
+  }
+  .arena-wizard-step-label {
+    margin-left: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #9CA3AF;
+  }
+
+  .arena-wizard-grades {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .arena-wizard-grade {
+    text-align: left;
+    padding: 18px 16px;
+    border-radius: 14px;
+    border: 1px solid #E8E4DC;
+    background: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    box-shadow: 0 6px 18px rgba(10, 22, 40, 0.05);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .arena-wizard-grade:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(10, 22, 40, 0.1);
+    border-color: var(--grade-color, #FD8841);
+  }
+  .arena-wizard-grade p {
+    margin: 10px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #6B7280;
+  }
+
+  .arena-challenge-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .arena-challenge-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(10, 22, 40, 0.08);
+    border-color: rgba(253, 136, 65, 0.35);
+  }
+
+  .arena-challenge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .arena-challenge-option {
+    width: 100%;
+    text-align: left;
+    padding: 16px 18px;
+    border-radius: 14px;
+    border: 1px solid #E8E4DC;
+    background: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+  .arena-challenge-option:hover {
+    transform: translateY(-1px);
+    border-color: #FD8841;
+    background: #FFF4EC;
+    box-shadow: 0 8px 20px rgba(253, 136, 65, 0.12);
+  }
+  .arena-challenge-option-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0A1628;
+    margin-bottom: 6px;
+  }
+  .arena-challenge-option p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #6B7280;
+  }
+
+  .arena-persona-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+  }
+
+  .arena-persona-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-align: left;
+    padding: 0;
+    border: 1px solid #E8E4DC;
+    border-radius: 20px;
+    background: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(10, 22, 40, 0.06);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .arena-persona-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px rgba(10, 22, 40, 0.1);
+  }
+  .arena-persona-card.is-selected {
+    border: 2px solid #FD8841;
+    background: #FFF4EC;
+    box-shadow: 0 12px 28px rgba(253, 136, 65, 0.18);
+  }
+  .arena-persona-card.is-met {
+    border-color: #4C8F5F;
+  }
+
+  .arena-persona-top {
+    display: flex;
+    gap: 14px;
+    padding: 14px 14px 12px;
+    align-items: stretch;
+  }
+
+  .arena-persona-photo {
+    width: 118px;
+    min-width: 118px;
+    height: 132px;
+    object-fit: cover;
+    border-radius: 14px;
+    background: #EFEBE3;
+  }
+  .arena-persona-photo--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 22px;
+    color: #0A1628;
+    letter-spacing: 0.04em;
+  }
+
+  .arena-persona-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding-top: 2px;
+  }
+
+  .arena-persona-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .arena-persona-met-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4C8F5F;
+    flex-shrink: 0;
+  }
+
+  .arena-persona-name {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .arena-persona-sub {
+    font-size: 13px;
+    color: #6B7280;
+    margin-top: 3px;
+  }
+
+  .arena-persona-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .arena-persona-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .arena-persona-chip--green {
+    background: #E7F3EA;
+    color: #3D7A4C;
+  }
+  .arena-persona-chip--lavender {
+    background: #EEE8F8;
+    color: #6B4EA3;
+  }
+  .arena-persona-chip--amber {
+    background: #F8EEDD;
+    color: #A36B1A;
+  }
+  .arena-persona-chip--rose {
+    background: #F8E6E1;
+    color: #A44732;
+  }
+  .arena-persona-chip--teal {
+    background: #E4F2F0;
+    color: #2F7A72;
+  }
+  .arena-persona-chip--blue {
+    background: #E6EEF8;
+    color: #3A5F8C;
+  }
+
+  .arena-persona-met {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4C8F5F;
+  }
+
+  .arena-persona-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid #EFEBE3;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0A1628;
+  }
+
+  @media (max-width: 640px) {
+    .arena-wizard-grades {
+      grid-template-columns: 1fr;
+    }
+    .arena-persona-grid {
+      grid-template-columns: 1fr;
+    }
+    .arena-persona-top {
+      flex-direction: column;
+    }
+    .arena-persona-photo {
+      width: 100%;
+      min-width: 0;
+      height: 180px;
+    }
+  }
+
   @media (max-width: 900px) {
     .arena-home-practice-grid {
       grid-template-columns: 1fr !important;

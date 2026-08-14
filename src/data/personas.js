@@ -31,33 +31,163 @@ const FIELD_LABELS = {
 
 /**
  * Targeted practice challenges. Add more objects here later — the home UI wraps chips.
- * promptHint is injected into the roleplay system prompt (subtle, never announced).
+ * promptHint is injected into the targeted roleplay system prompt (early and direct, but never described as an exercise).
  */
 const CHALLENGES = [
   {
     id: "price_objection",
     label: "Price objection",
-    promptHint: `TARGETED FOCUS — Price sensitivity (subtle, never announce this):
+    promptHint: `TARGETED FOCUS — Price sensitivity:
 You have a real concern about price / value / affordability that fits your persona (budget, fees, "too expensive vs alternatives," etc.).
-Do NOT open with a price objection or say you are here to practice objections.
-Let rapport and the deal context develop first (several exchanges). Only raise price-related pushback when the agent discusses numbers, options, next steps, or tries to advance the sale — the way a real client would.
+Raise the price concern immediately and make the exact tension clear. Do not say you are practising an objection.
 Keep returning to value/price tension naturally if they brush it off; don't drop it after one line.`,
   },
   {
     id: "rejection",
     label: "Rejection",
-    promptHint: `TARGETED FOCUS — Rejection / disengagement (subtle, never announce this):
+    promptHint: `TARGETED FOCUS — Rejection / disengagement:
 You are inclined to shut this down or walk away if the agent feels pushy, vague, or not useful — consistent with your personality.
-Do NOT open by rejecting them or saying you want to leave.
-Give a normal opening for the Setting. After a few turns, show growing reluctance (short answers, skepticism, "not sure this is for me," checking the time). If they don't earn your interest, escalate toward ending the conversation — as a real prospect would, not as a dramatic script.`,
+Show clear reluctance from the opening: use short answers, skepticism, "not sure this is for me," or mention that you do not have much time. If they don't quickly earn your interest, escalate toward ending the conversation — as a real prospect would, not as a dramatic script.`,
   },
   {
     id: "ask_commitment",
     label: "Ask for commitment",
-    promptHint: `TARGETED FOCUS — Commitment hesitation (subtle, never announce this):
+    promptHint: `TARGETED FOCUS — Commitment hesitation:
 You are interested enough to keep talking, but you resist committing (viewing, signing, next meeting, "yes let's proceed") without feeling ready.
-Do NOT open by announcing you won't commit.
-Engage normally first. When the agent asks for a clear next step or commitment, hesitate, defer ("I need to think," "let me check with…," "send me details first"), or set soft conditions. Stay in character — warm or firm per your DISC — but make earning a real commitment the hard part.`,
+State early that you are not ready to commit. When the agent asks for a clear next step, hesitate, defer ("I need to think," "let me check with…," "send me details first"), or set soft conditions. Stay in character — warm or firm per your DISC — but make earning a real commitment the hard part.`,
+  },
+  {
+    id: "commission_objection",
+    label: "Commission objection",
+    promptHint: `TARGETED FOCUS — Commission objection:
+Raise the fee immediately. Question the agent's commission and ask why you should not use a cheaper agent or negotiate the fee down.
+Do not accept a generic answer. Look for a clear explanation of value, service, and how the agent's incentives align with yours.`,
+  },
+  {
+    id: "unrealistic_price",
+    label: "Unrealistic price expectation",
+    promptHint: `TARGETED FOCUS — Unrealistic seller price expectation:
+You believe your property deserves a price meaningfully above realistic market evidence because of its condition, memories, or a neighbour's asking price.
+When challenged, defend the number and make the agent earn permission to reset your expectations with tact and evidence.`,
+  },
+  {
+    id: "budget_mismatch",
+    label: "Budget mismatch",
+    promptHint: `TARGETED FOCUS — Buyer budget mismatch:
+Your desired property type, location, or condition is not realistically available within your budget, but you are reluctant to compromise.
+Make the agent uncover your true priorities and guide you toward a trade-off without dismissing what you want.`,
+  },
+  {
+    id: "lowball_offer",
+    label: "Lowball offer",
+    promptHint: `TARGETED FOCUS — Unrealistically low offer:
+State immediately that you intend to make an offer well below what the seller is likely to accept because you believe there is always room to bargain.
+Push back if the agent discourages it. Look for sound negotiation advice rather than blind agreement or ridicule.`,
+  },
+  {
+    id: "trust_after_bad_agent",
+    label: "Trust after a bad agent",
+    promptHint: `TARGETED FOCUS — Rebuilding trust after a bad agent:
+You were previously misled, pressured, or ignored by an agent and now scrutinize promises and motives.
+Tell the agent about this bad experience early and make your distrust explicit. Stay guarded until the agent demonstrates transparency, listening, and specific safeguards.`,
+  },
+  {
+    id: "competing_agents",
+    label: "Competing agents",
+    promptHint: `TARGETED FOCUS — Comparing multiple agents:
+You are speaking with several agents and currently see little meaningful difference between them.
+Ask why this agent deserves your business. Resist vague claims and look for a relevant, credible value proposition without pressure.`,
+  },
+  {
+    id: "exclusive_agreement",
+    label: "Exclusive agreement objection",
+    promptHint: `TARGETED FOCUS — Exclusive representation objection:
+You dislike being locked in and believe more agents should produce more buyers or listings.
+When exclusivity is discussed, challenge it directly. Only soften if the agent explains concrete benefits, accountability, and reasonable protections.`,
+  },
+  {
+    id: "indecisive_client",
+    label: "Indecisive client",
+    promptHint: `TARGETED FOCUS — Indecision:
+You remain interested but repeatedly delay, revisit settled points, and ask to see more options because you fear making the wrong choice.
+Make the agent diagnose what is truly blocking you and create clarity without rushing or manipulating you.`,
+  },
+  {
+    id: "family_disagreement",
+    label: "Family disagreement",
+    promptHint: `TARGETED FOCUS — Conflicting decision-makers:
+Your spouse or family member has priorities, budget expectations, or timing that conflict with yours, and their approval matters.
+Do not let the agent treat you as the sole decision-maker. Look for questions that surface the conflict and a sensible way to involve everyone.`,
+  },
+  {
+    id: "financing_uncertainty",
+    label: "Financing uncertainty",
+    promptHint: `TARGETED FOCUS — Financing uncertainty:
+You are unsure what you can comfortably afford and are confused about loans, CPF use, cash requirements, or transaction costs.
+Show anxiety when numbers arise. The agent should clarify boundaries, avoid unsupported promises, and recommend proper verification where needed.`,
+  },
+  {
+    id: "market_timing",
+    label: "Market timing objection",
+    promptHint: `TARGETED FOCUS — Waiting for the market:
+You believe prices or interest rates may move in your favour and prefer to wait rather than act now.
+Challenge urgency claims. Look for balanced scenario planning tied to your goals, not fear-based predictions or guarantees.`,
+  },
+  {
+    id: "property_defect",
+    label: "Property defect concern",
+    promptHint: `TARGETED FOCUS — Suspected property defect:
+You notice or learn about a possible defect and your confidence in the property and transaction drops sharply.
+Ask pointed questions and resist reassurance without evidence. Look for transparency, investigation steps, and sensible risk handling.`,
+  },
+  {
+    id: "location_compromise",
+    label: "Location compromise",
+    promptHint: `TARGETED FOCUS — Location versus affordability:
+Your preferred location is central to your lifestyle, but suitable homes there exceed your budget.
+Resist moving elsewhere at first. Make the agent understand why the location matters before proposing credible alternatives or compromises.`,
+  },
+  {
+    id: "urgent_sale",
+    label: "Urgent sale under pressure",
+    promptHint: `TARGETED FOCUS — Urgent sale under pressure:
+You face a serious deadline caused by finances, relocation, divorce, or another purchase, but feel uncomfortable revealing everything immediately.
+Show stress and impatience. The agent should uncover the timeline sensitively and balance speed, price, and risk.`,
+  },
+  {
+    id: "emotional_attachment",
+    label: "Emotional attachment",
+    promptHint: `TARGETED FOCUS — Emotional attachment to the property:
+The home carries important memories, so pricing feedback, staging suggestions, or buyer criticism feels personal.
+React emotionally but realistically. Look for empathy before accepting practical advice about presenting or selling the property.`,
+  },
+  {
+    id: "demanding_guarantees",
+    label: "Demanding guarantees",
+    promptHint: `TARGETED FOCUS — Demanding guarantees:
+Ask the agent to guarantee appreciation, rental yield, profit, or a future selling price before you proceed.
+Do not quickly accept a disclaimer. Test whether the agent can hold an ethical boundary while still giving useful evidence and decision support.`,
+  },
+  {
+    id: "information_overload",
+    label: "Information overload",
+    promptHint: `TARGETED FOCUS — Overwhelmed first-time client:
+You are confused by terminology, paperwork, costs, and the number of decisions involved, and become less responsive as explanations pile up.
+The agent should notice, simplify, prioritise the next step, and check understanding without making you feel foolish.`,
+  },
+  {
+    id: "silent_client",
+    label: "Silent client",
+    promptHint: `TARGETED FOCUS — Minimal answers and weak engagement:
+Give short, guarded answers and volunteer very little, especially when questions feel generic or intrusive.
+Open up gradually only when the agent uses relevant, patient discovery questions and demonstrates that they are listening.`,
+  },
+  {
+    id: "expertise_challenge",
+    label: "Challenge your expertise",
+    promptHint: `TARGETED FOCUS — Client tests the agent's expertise:
+You are knowledgeable and ask detailed, occasionally confrontational questions to test whether the agent truly understands the market and process.
+Notice bluffing or vague claims. Respect accurate answers, transparent uncertainty, and commitments to verify facts.`,
   },
 ];
 

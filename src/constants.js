@@ -9,6 +9,26 @@ export const DISC = {
   C: { name: "Conscientiousness", desc: "Analytical, detail-oriented, skeptical by default. Wants data, comparisons, and proof before deciding. Asks precise follow-up questions, uncomfortable with vague or emotional answers." },
 };
 
+/** Short trait chips shown on persona selection cards. */
+export const DISC_CHIPS = {
+  D: [
+    { label: "Direct", tone: "amber" },
+    { label: "Decisive", tone: "rose" },
+  ],
+  I: [
+    { label: "People-oriented", tone: "green" },
+    { label: "Outgoing", tone: "lavender" },
+  ],
+  S: [
+    { label: "Steady", tone: "teal" },
+    { label: "Patient", tone: "green" },
+  ],
+  C: [
+    { label: "Analytical", tone: "blue" },
+    { label: "Detail-focused", tone: "lavender" },
+  ],
+};
+
 export const SALES_STYLES = [
   "Consultative", "Relationship-based", "Direct / Assertive closer",
   "Educator / Advisor", "Data-driven / Analytical", "Solution selling",

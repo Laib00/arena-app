@@ -6,7 +6,14 @@ function buildSystemPrompt(himself, client, aim, setting, challenge = null) {
   const [f1, f2, f3] = FIELD_LABELS[client.industry];
   const discDesc = DISC[client.disc].desc;
   const challengeBlock = challenge?.promptHint
-    ? `\n\n${challenge.promptHint}\n`
+    ? `\n\nTARGETED CHALLENGE MODE — THIS OVERRIDES THE NORMAL SLOW-BUILD RULES BELOW:
+- Bring up the selected challenge clearly in your opening message or first reply.
+- Make the concern specific and unmistakable, but stay fully in character. Never call it a challenge, exercise, test, or roleplay.
+- Keep returning to the issue naturally until the agent handles it convincingly. Do not drop it after one answer merely to be agreeable.
+- You may soften only when the agent demonstrates the relevant skill with a concrete, credible response. If they evade, pressure, or give a vague answer, maintain or escalate the pushback.
+- For this targeted session, these instructions override any later instruction to delay, gradually reveal, or avoid front-loading your hardest concern.
+
+${challenge.promptHint}\n`
     : "";
 
   return `INDUSTRY: ${industryLabel}

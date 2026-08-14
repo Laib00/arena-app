@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { ArrowRight, Flame, Lock, Phone, RotateCcw, Zap, X } from "lucide-react";
-import { NAVY, GOLD, CREAM } from "../theme";
+import { useEffect, useState } from "react";
+import { ArrowRight, ChevronLeft, Flame, Lock, Phone, RotateCcw, Zap, X } from "lucide-react";
+import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
 import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
 import { formatStreakLabel } from "../streak";
 import GradeBadge from "../components/GradeBadge";
-import IndustryDisplay from "../components/IndustryDisplay";
-import SectionLabel from "../components/SectionLabel";
+import PersonaCard from "../components/PersonaCard";
 
 function relativeTime(iso) {
   if (!iso) return "";
@@ -18,32 +17,48 @@ function relativeTime(iso) {
   return `${days} days ago`;
 }
 
-function PracticeSetupModal({
-  open,
-  onClose,
-  industry,
-  switchIndustry,
-  himself,
-  onEditProfile,
-  industryPersonas,
-  metPersonaIds,
-  clientId,
-  pickFixedClient,
-  randomClient,
-  generateRandom,
-  aims,
-  aimKey,
-  setAimKey,
-  settingKey,
-  setSettingKey,
-  challenge,
-  setChallenge,
-  canStart,
-  onStart,
-}) {
+const WIZARD_STEPS = ["grade", "client", "scenario"];
+
+const GRADE_BLURBS = {
+  Easy: "Warm, ready to move, no history with a bad agent. Good for finding your rhythm.",
+  Medium: "A real complication — a tight budget, an emotional attachment, or no patience for your preamble.",
+  Hard: "They've been burned before and they will test you early. Trust has to be earned in the conversation.",
+  Impossible: "They want something no honest agent can deliver, and they won't accept no. You can't win. You can only handle it well.",
+};
+
+const STEP_COPY = {
+  grade: { title: "Choose difficulty", subtitle: "How tough should this client be?" },
+  client: { title: "Choose your client", subtitle: "Pick who you'll practise with." },
+  scenario: { title: "Choose scenario", subtitle: "Set the aim and the setting for this conversation." },
+};
+
+const CHALLENGE_BLURBS = {
+  price_objection: "The client pushes back on price, value, or affordability — but only once the conversation gets there.",
+  rejection: "The client grows reluctant and may try to end the conversation if you don't earn their interest.",
+  ask_commitment: "The client keeps talking but won't commit to a next step until they feel genuinely ready.",
+  commission_objection: "The client questions your fee and asks why they should not use a cheaper agent.",
+  unrealistic_price: "A seller insists their property is worth significantly more than the market supports.",
+  budget_mismatch: "The client's ideal property, location, and budget do not realistically align.",
+  lowball_offer: "A buyer insists on submitting an offer that is unlikely to be accepted.",
+  trust_after_bad_agent: "The client has been misled or pressured before and now doubts agents' motives.",
+  competing_agents: "The client is comparing several agents and sees little difference between them.",
+  exclusive_agreement: "The client refuses exclusive representation because they fear being locked in.",
+  indecisive_client: "The client remains interested but repeatedly delays and asks for more options.",
+  family_disagreement: "A spouse or family member has conflicting priorities and must agree to proceed.",
+  financing_uncertainty: "The client is anxious and unclear about affordability, loans, CPF, or upfront costs.",
+  market_timing: "The client wants to wait for prices or interest rates to move in their favour.",
+  property_defect: "A suspected defect causes the client to lose confidence in the property and transaction.",
+  location_compromise: "The preferred location matters deeply, but suitable homes there exceed the budget.",
+  urgent_sale: "A seller faces a serious deadline and must balance speed, price, and personal pressure.",
+  emotional_attachment: "Personal memories make pricing feedback and practical selling advice feel upsetting.",
+  demanding_guarantees: "The client demands guaranteed appreciation, yield, or profit before proceeding.",
+  information_overload: "A first-time client becomes overwhelmed by terminology, paperwork, and decisions.",
+  silent_client: "The client gives short, guarded answers and makes discovery difficult.",
+  expertise_challenge: "A knowledgeable client asks detailed questions and tests whether the agent will bluff.",
+};
+
+function ChallengeSetupModal({ open, onClose, onSelectChallenge }) {
   if (!open) return null;
-  const grouped = GRADE_ORDER.map((g) => ({ grade: g, items: industryPersonas.filter((p) => p.grade === g) }));
-  const selectedChallengeId = challenge?.id || null;
 
   return (
     <div
@@ -58,7 +73,7 @@ function PracticeSetupModal({
         className="arena-practice-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 860,
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520,
           maxHeight: "calc(100vh - 96px)", overflowY: "auto", padding: "28px 28px 32px", position: "relative",
           boxShadow: "0 24px 64px rgba(10,22,40,0.28)",
         }}
@@ -72,189 +87,264 @@ function PracticeSetupModal({
         </button>
 
         <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>
+          Targeted practice
+        </div>
+        <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 28, margin: "0 0 6px", color: NAVY }}>
+          Choose a challenge
+        </h2>
+        <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 22 }}>
+          Pick one difficult moment to train. We'll match you with a random client and scenario focused on it.
+        </p>
+
+        <div className="arena-challenge-list">
+          {CHALLENGES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="arena-challenge-option"
+              onClick={() => onSelectChallenge(c)}
+            >
+              <div className="arena-challenge-option-top">
+                <Zap size={18} color={GOLD} />
+                <span>{c.label}</span>
+              </div>
+              <p>{CHALLENGE_BLURBS[c.id]}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PracticeSetupModal({
+  open,
+  onClose,
+  himself,
+  onEditProfile,
+  industryPersonas,
+  metPersonaIds,
+  clientId,
+  pickFixedClient,
+  randomClient,
+  generateRandom,
+  aims,
+  aimKey,
+  setAimKey,
+  settingKey,
+  setSettingKey,
+  onStart,
+}) {
+  const [wizardStep, setWizardStep] = useState("grade");
+  const [selectedGrade, setSelectedGrade] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setWizardStep("grade");
+    setSelectedGrade(null);
+  }, [open]);
+
+  if (!open) return null;
+
+  const stepIndex = WIZARD_STEPS.indexOf(wizardStep);
+  const copy = STEP_COPY[wizardStep];
+  const gradeClients = selectedGrade
+    ? industryPersonas.filter((p) => p.grade === selectedGrade)
+    : [];
+  const scenarioReady = Boolean(aimKey && settingKey);
+
+  function goBack() {
+    if (wizardStep === "client") {
+      pickFixedClient(null);
+      setWizardStep("grade");
+      return;
+    }
+    if (wizardStep === "scenario") {
+      setWizardStep("client");
+    }
+  }
+
+  function chooseGrade(grade) {
+    setSelectedGrade(grade);
+    setWizardStep("client");
+  }
+
+  function chooseClient(id) {
+    pickFixedClient(id);
+    setWizardStep("scenario");
+  }
+
+  function chooseRandom() {
+    generateRandom();
+    setWizardStep("scenario");
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(10,22,40,0.55)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "48px 16px", zIndex: 50, boxSizing: "border-box",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="arena-practice-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 920,
+          maxHeight: "calc(100vh - 96px)", overflowY: "auto", padding: "28px 28px 32px", position: "relative",
+          boxShadow: "0 24px 64px rgba(10,22,40,0.28)",
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}
+          aria-label="Close"
+        >
+          <X size={22} />
+        </button>
+
+        {wizardStep !== "grade" && (
+          <button type="button" className="arena-wizard-back" onClick={goBack}>
+            <ChevronLeft size={16} /> Back
+          </button>
+        )}
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>
           Open practice
         </div>
         <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 28, margin: "0 0 6px", color: NAVY }}>
-          Practice your deal
+          {copy.title}
         </h2>
-        <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 24 }}>
-          Choose your client and scenario, then start immediately.
+        <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 18 }}>
+          {copy.subtitle}
         </p>
 
-        <IndustryDisplay industry={industry} switchIndustry={switchIndustry} />
-
-        <SectionLabel n="1" title="Your Agent Profile" />
-        <div className="arena-agent-summary" style={{ background: CREAM, border: "1px solid #E8E4DC", borderRadius: 12, padding: 18, marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>{himself.name || "(no name set)"}</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginTop: 3 }}>
-              {himself.occupation}{himself.age ? ` · ${himself.age}` : ""} · DISC {himself.disc} · {himself.salesStyle}
-            </div>
-          </div>
-          <button
-            onClick={onEditProfile}
-            style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${GOLD}`, background: "#fff", color: NAVY, fontWeight: 600, fontSize: 13, cursor: "pointer", flexShrink: 0 }}
-          >
-            Edit Profile
-          </button>
+        <div className="arena-wizard-progress" aria-label={`Step ${stepIndex + 1} of ${WIZARD_STEPS.length}`}>
+          {WIZARD_STEPS.map((s, i) => (
+            <span key={s} className={`arena-wizard-dot${i <= stepIndex ? " is-on" : ""}`} />
+          ))}
+          <span className="arena-wizard-step-label">Step {stepIndex + 1} of {WIZARD_STEPS.length}</span>
         </div>
 
-        <SectionLabel n="2" title="Choose Your Client" />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -6, marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-          <p style={{ color: "#6B7280", fontSize: 13, margin: 0 }}>16 personas: 2 Easy, 6 Medium, 6 Hard, 2 Impossible</p>
-          <button
-            onClick={generateRandom}
-            style={{
-              padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
-              border: `1px solid ${GOLD}`, background: "#fff", color: NAVY,
-            }}
-          >
-            Generate Random Client
-          </button>
-        </div>
+        {wizardStep === "grade" && (
+          <>
+            <div className="arena-agent-summary" style={{ background: CREAM, border: "1px solid #E8E4DC", borderRadius: 12, padding: "14px 16px", marginBottom: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{himself.name || "(no name set)"}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                  {himself.occupation}{himself.age ? ` · ${himself.age}` : ""} · DISC {himself.disc}
+                </div>
+              </div>
+              <button
+                onClick={onEditProfile}
+                style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${GOLD}`, background: "#fff", color: NAVY, fontWeight: 600, fontSize: 13, cursor: "pointer", flexShrink: 0 }}
+              >
+                Edit Profile
+              </button>
+            </div>
 
-        {randomClient && (
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Wildcard</span>
-              <GradeBadge grade={randomClient.grade} size="md" />
+            <div className="arena-wizard-grades">
+              {GRADE_ORDER.map((grade) => (
+                <button
+                  key={grade}
+                  type="button"
+                  className="arena-wizard-grade"
+                  onClick={() => chooseGrade(grade)}
+                  style={{ "--grade-color": GRADE_COLOR[grade] }}
+                >
+                  <GradeBadge grade={grade} size="md" />
+                  <p>{GRADE_BLURBS[grade]}</p>
+                </button>
+              ))}
             </div>
-            <div
-              style={{
-                display: "inline-block", textAlign: "left", padding: "12px 14px", borderRadius: 10,
-                border: `2px solid ${GOLD}`, background: "rgba(253,136,65,0.08)",
-                minWidth: 200,
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{randomClient.name}</div>
-              <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>{randomClient.age} · {randomClient.occupation}</div>
-              <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>DISC {randomClient.disc} · {randomClient.needLevel.split(" (")[0]}</div>
-            </div>
-          </div>
+          </>
         )}
 
-        <div style={{ marginBottom: 28 }}>
-          {grouped.map(({ grade, items }) => (
-            <div key={grade} style={{ marginBottom: 18 }}>
-              <div style={{ marginBottom: 8 }}><GradeBadge grade={grade} size="md" /></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-                {items.map((p) => {
-                  const selected = !randomClient && clientId === p.id;
-                  const met = metPersonaIds?.has(p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => pickFixedClient(p.id)}
-                      style={{
-                        position: "relative", textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
-                        border: selected ? `2px solid ${GOLD}` : met ? "1px solid #4C8F5F" : "1px solid #E2DFD6",
-                        background: selected ? "rgba(253,136,65,0.08)" : "#fff",
-                      }}
-                    >
-                      {met && (
-                        <span
-                          title="You've spoken with this client before"
-                          style={{
-                            position: "absolute", top: 8, right: 8, width: 8, height: 8, borderRadius: "50%",
-                            background: "#4C8F5F",
-                          }}
-                        />
-                      )}
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
-                      <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>{p.age} · {p.occupation}</div>
-                      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>DISC {p.disc} · {p.needLevel.split(" (")[0]}</div>
-                      {met && <div style={{ fontSize: 10, color: "#4C8F5F", fontWeight: 600, marginTop: 3 }}>Met before</div>}
-                    </button>
-                  );
-                })}
+        {wizardStep === "client" && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+              <GradeBadge grade={selectedGrade} size="md" />
+              <button
+                type="button"
+                onClick={chooseRandom}
+                style={{
+                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  border: `1px solid ${GOLD}`, background: "#fff", color: NAVY,
+                }}
+              >
+                Generate Random Client
+              </button>
+            </div>
+            <div className="arena-persona-grid">
+              {gradeClients.map((p) => (
+                <PersonaCard
+                  key={p.id}
+                  persona={p}
+                  selected={!randomClient && clientId === p.id}
+                  met={metPersonaIds?.has(p.id)}
+                  onSelect={chooseClient}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {wizardStep === "scenario" && (
+          <>
+            <div style={{ background: CREAM, border: "1px solid #E8E4DC", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Aim</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+                {aims.map((a) => (
+                  <button
+                    key={a.key}
+                    onClick={() => setAimKey(a.key)}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+                      border: aimKey === a.key ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: aimKey === a.key ? NAVY : "#fff",
+                      color: aimKey === a.key ? "#fff" : NAVY, fontWeight: 500,
+                    }}
+                  >
+                    {a.key}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Setting</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {SETTINGS.map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setSettingKey(s.key)}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+                      border: settingKey === s.key ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: settingKey === s.key ? NAVY : "#fff",
+                      color: settingKey === s.key ? "#fff" : NAVY, fontWeight: 500,
+                    }}
+                  >
+                    {s.key}
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-
-        <SectionLabel n="3" title="Choose Scenario" />
-        <div style={{ background: CREAM, border: "1px solid #E8E4DC", borderRadius: 12, padding: 20, marginBottom: 28 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Aim</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-            {aims.map((a) => (
-              <button
-                key={a.key}
-                onClick={() => setAimKey(a.key)}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-                  border: aimKey === a.key ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
-                  background: aimKey === a.key ? NAVY : "#fff",
-                  color: aimKey === a.key ? "#fff" : NAVY, fontWeight: 500,
-                }}
-              >
-                {a.key}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Setting</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {SETTINGS.map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setSettingKey(s.key)}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-                  border: settingKey === s.key ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
-                  background: settingKey === s.key ? NAVY : "#fff",
-                  color: settingKey === s.key ? "#fff" : NAVY, fontWeight: 500,
-                }}
-              >
-                {s.key}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <SectionLabel n="4" title="Challenge (optional)" />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28, marginTop: -6 }}>
-          <button
-            type="button"
-            onClick={() => setChallenge(null)}
-            style={{
-              padding: "8px 12px", borderRadius: 999, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              border: !selectedChallengeId ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
-              background: !selectedChallengeId ? NAVY : "#fff",
-              color: !selectedChallengeId ? "#fff" : NAVY,
-            }}
-          >
-            None
-          </button>
-          {CHALLENGES.map((c) => {
-            const selected = selectedChallengeId === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setChallenge(selected ? null : c)}
-                style={{
-                  padding: "8px 12px", borderRadius: 999, cursor: "pointer", fontSize: 12, fontWeight: 600,
-                  border: selected ? `2px solid ${GOLD}` : "1px solid #E2DFD6",
-                  background: selected ? "rgba(253,136,65,0.12)" : "#fff",
-                  color: selected ? GOLD : NAVY,
-                }}
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          onClick={onStart}
-          disabled={!canStart}
-          style={{
-            width: "100%", padding: "16px", borderRadius: 10, border: "none", cursor: canStart ? "pointer" : "not-allowed",
-            background: canStart ? GOLD : "#E2DFD6", color: canStart ? "#fff" : "#9CA3AF",
-            fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
-        >
-          Start Roleplay <ArrowRight size={18} />
-        </button>
+            <button
+              type="button"
+              disabled={!scenarioReady}
+              onClick={() => onStart(null)}
+              style={{
+                width: "100%", padding: "16px", borderRadius: 10, border: "none",
+                cursor: scenarioReady ? "pointer" : "not-allowed",
+                background: scenarioReady ? GOLD : "#E2DFD6",
+                color: scenarioReady ? "#fff" : "#9CA3AF",
+                fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              Start conversation <ArrowRight size={18} />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -267,6 +357,7 @@ export default function SetupScreen({
   canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onViewHistory,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [challengeModalOpen, setChallengeModalOpen] = useState(false);
 
   const rounds = recentSessions?.totalEndedCount ?? 0;
   const practiceStreak = recentSessions?.practiceStreak ?? 0;
@@ -333,7 +424,15 @@ export default function SetupScreen({
         </button>
 
         {/* Targeted */}
-        <div style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24, minHeight: 220, display: "flex", flexDirection: "column" }}>
+        <button
+          type="button"
+          onClick={() => setChallengeModalOpen(true)}
+          className="arena-challenge-card"
+          style={{
+            textAlign: "left", background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24,
+            minHeight: 220, display: "flex", flexDirection: "column", cursor: "pointer", fontFamily: "inherit", color: "inherit",
+          }}
+        >
           <Zap size={22} color={GOLD} style={{ marginBottom: 10 }} />
           <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 8 }}>
             Targeted practice
@@ -341,25 +440,13 @@ export default function SetupScreen({
           <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: NAVY, marginBottom: 8 }}>
             Take a Challenge
           </div>
-          <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5, margin: "0 0 16px" }}>
+          <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5, margin: 0, flex: 1 }}>
             Train one difficult moment instead of running a full open conversation.
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: "auto" }}>
-            {CHALLENGES.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => onStartChallenge?.(c)}
-                style={{
-                  padding: "8px 12px", borderRadius: 999, border: "none", cursor: "pointer",
-                  background: "rgba(253,136,65,0.12)", color: GOLD, fontWeight: 600, fontSize: 12,
-                }}
-              >
-                {c.label}
-              </button>
-            ))}
+          <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: GOLD }}>
+            Choose challenge <ArrowRight size={16} />
           </div>
-        </div>
+        </button>
 
         {/* Voice — disabled */}
         <div
@@ -481,6 +568,15 @@ export default function SetupScreen({
         </div>
       </div>
 
+      <ChallengeSetupModal
+        open={challengeModalOpen}
+        onClose={() => setChallengeModalOpen(false)}
+        onSelectChallenge={(c) => {
+          setChallengeModalOpen(false);
+          onStartChallenge?.(c);
+        }}
+      />
+
       <PracticeSetupModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -502,9 +598,9 @@ export default function SetupScreen({
         challenge={challenge}
         setChallenge={setChallenge}
         canStart={canStart}
-        onStart={() => {
+        onStart={(nextChallenge) => {
           setModalOpen(false);
-          startRoleplay();
+          startRoleplay(nextChallenge);
         }}
       />
     </div>
