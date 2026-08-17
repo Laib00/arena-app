@@ -301,40 +301,59 @@ export const ARENA_RESPONSIVE_CSS = `
   .arena-challenge-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
   }
   .arena-challenge-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
     width: 100%;
     text-align: left;
-    padding: 16px 18px;
-    border-radius: 14px;
-    border: 1px solid #E8E4DC;
-    background: #fff;
+    padding: 14px 10px;
+    border: none;
+    border-bottom: 1px solid #F0EDE6;
+    border-radius: 0;
+    background: transparent;
     cursor: pointer;
     font-family: inherit;
     color: inherit;
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    transition: background 0.15s ease;
+  }
+  .arena-challenge-option:last-child {
+    border-bottom: none;
   }
   .arena-challenge-option:hover {
-    transform: translateY(-1px);
-    border-color: #FD8841;
-    background: #FFF4EC;
-    box-shadow: 0 8px 20px rgba(253, 136, 65, 0.12);
+    background: #FFF8F3;
+    border-radius: 12px;
   }
-  .arena-challenge-option-top {
+  .arena-challenge-option-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #FFF4EC;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .arena-challenge-option-copy {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 16px;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+  .arena-challenge-option-title {
+    font-size: 15px;
     font-weight: 700;
     color: #0A1628;
-    margin-bottom: 6px;
+    line-height: 1.25;
   }
-  .arena-challenge-option p {
-    margin: 0;
+  .arena-challenge-option-blurb {
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.45;
     color: #6B7280;
+  }
+  .arena-challenge-option-chevron {
+    flex-shrink: 0;
   }
 
   .arena-persona-grid {
