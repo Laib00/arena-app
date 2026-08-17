@@ -643,44 +643,27 @@ export default function SetupScreen({
             </div>
           )}
           extra={(
-            <>
-              {[96, 140, 184, 228].map((size) => (
-                <div
-                  key={size}
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    right: 42 - size / 2,
-                    bottom: 42 - size / 2,
-                    width: size,
-                    height: size,
-                    borderRadius: "50%",
-                    border: "1.5px solid rgba(253,136,65,0.32)",
-                    pointerEvents: "none",
-                    zIndex: 0,
-                  }}
-                />
-              ))}
-              <div
-                className="arena-open-practice-cta"
-                style={{
-                  position: "absolute",
-                  right: 18,
-                  bottom: 18,
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  background: GOLD,
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  zIndex: 2,
-                }}
-              >
-                <ArrowRight size={20} strokeWidth={2.2} />
-              </div>
-            </>
+            <div
+              className="arena-open-practice-cta"
+              style={{
+                position: "absolute",
+                right: 18,
+                bottom: 18,
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: GOLD,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2,
+              }}
+            >
+              <span className="arena-open-practice-ripple" aria-hidden="true" />
+              <span className="arena-open-practice-ripple arena-open-practice-ripple--delay" aria-hidden="true" />
+              <ArrowRight size={20} strokeWidth={2.2} style={{ position: "relative", zIndex: 1 }} />
+            </div>
           )}
         />
 

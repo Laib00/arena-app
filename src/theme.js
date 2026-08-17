@@ -289,13 +289,18 @@ export const ARENA_RESPONSIVE_CSS = `
     color: #6B7280;
   }
 
+  .arena-open-practice-card,
   .arena-challenge-card {
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
+  .arena-open-practice-card:hover,
   .arena-challenge-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 28px rgba(10, 22, 40, 0.08);
     border-color: rgba(253, 136, 65, 0.35);
+  }
+  .arena-open-practice-card:hover {
+    box-shadow: 0 16px 36px rgba(10, 22, 40, 0.28);
   }
 
   .arena-challenge-list {
