@@ -15,7 +15,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Arena — Practice the sales conversation before it costs you the deal";
+    document.title = "Arena";
     document.documentElement.style.scrollBehavior = "smooth";
     return () => {
       document.title = previousTitle;
