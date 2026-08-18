@@ -638,6 +638,129 @@
 }
 
 /* ==========================================================================
+   Why Arena
+   ========================================================================== */
+
+.lp-why {
+  padding-top: 72px;
+}
+
+.lp-why-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.7fr);
+  grid-template-areas:
+    "eyebrow ."
+    "heading lede";
+  column-gap: 48px;
+  row-gap: 10px;
+  align-items: end;
+  margin-bottom: 36px;
+}
+
+.lp-why-eyebrow {
+  grid-area: eyebrow;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a8378;
+}
+
+.lp-why-h {
+  grid-area: heading;
+  font-family: var(--sans);
+  font-size: clamp(32px, 4.4vw, 52px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.lp-why-lede {
+  grid-area: lede;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #8a8378;
+  max-width: 28ch;
+  justify-self: end;
+  text-align: left;
+  padding-bottom: 6px;
+}
+
+.lp-why-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--paper);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(10, 22, 40, 0.04);
+}
+
+.lp-why-cell {
+  padding: 28px 24px 32px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.lp-why-cell:nth-child(4n) {
+  border-right: none;
+}
+
+.lp-why-cell:nth-child(n + 5) {
+  border-bottom: none;
+}
+
+.lp-why-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #fff1e6;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.lp-why-icon img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+}
+
+.lp-why-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.lp-why-body {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #8a8378;
+}
+
+.lp-why-banner {
+  margin-top: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.lp-why-banner-mask {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  font-size: clamp(44px, 5.8vw, 72px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+/* ==========================================================================
    Ecosystem hub
    ========================================================================== */
 
@@ -1362,6 +1485,122 @@
 
 .lp-waf-footline span {
   color: var(--accent);
+}
+
+/* ==========================================================================
+   The Gap
+   ========================================================================== */
+
+.lp-gap {
+  overflow: hidden;
+  padding-top: 120px;
+  padding-bottom: 120px;
+}
+
+.lp-gap-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(380px, 1.28fr);
+  gap: 48px 56px;
+  align-items: center;
+}
+
+.lp-gap-copy {
+  padding: 12px 28px 12px 8px;
+}
+
+.lp-gap-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--accent);
+}
+
+.lp-gap-h {
+  font-family: var(--sans);
+  font-size: clamp(30px, 3.6vw, 44px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.lp-gap-sub {
+  margin-top: 12px;
+  font-family: var(--sans);
+  font-size: clamp(26px, 3.2vw, 40px);
+  font-weight: 400;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #9a9388;
+  max-width: 16ch;
+}
+
+.lp-gap-points {
+  list-style: none;
+  margin: 48px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 28px;
+  max-width: 460px;
+}
+
+.lp-gap-point {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.lp-gap-point-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff1e6;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.lp-gap-point-icon img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+  mix-blend-mode: screen;
+}
+
+.lp-gap-point strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lp-gap-point p {
+  margin-top: 8px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #5c6675;
+}
+
+.lp-gap-visual {
+  position: relative;
+  min-width: 0;
+}
+
+.lp-gap-visual img {
+  display: block;
+  width: 118%;
+  max-width: none;
+  height: auto;
 }
 
 .lp-waf-scroll {
@@ -2269,6 +2508,76 @@
    ========================================================================== */
 
 @media (max-width: 940px) {
+  .lp-why-head {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "eyebrow"
+      "heading"
+      "lede";
+    row-gap: 12px;
+  }
+
+  .lp-why-lede {
+    justify-self: start;
+    max-width: 46ch;
+    padding-bottom: 0;
+  }
+
+  .lp-why-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .lp-why-cell {
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lp-why-cell:nth-child(4n) {
+    border-right: 1px solid var(--line);
+  }
+
+  .lp-why-cell:nth-child(n + 5) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lp-why-cell:nth-child(2n) {
+    border-right: none;
+  }
+
+  .lp-why-cell:nth-child(n + 7) {
+    border-bottom: none;
+  }
+
+  .lp-why-banner {
+    padding: 8px 0;
+  }
+
+  .lp-why-banner-mask {
+    font-size: clamp(32px, 9vw, 52px);
+  }
+
+  .lp-gap-inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .lp-gap-copy {
+    padding: 0;
+  }
+
+  .lp-gap-sub {
+    max-width: 24ch;
+  }
+
+  .lp-gap-visual {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .lp-gap-visual img {
+    width: 100%;
+  }
+
   .lp-eco {
     padding: 48px 18px 64px;
   }
@@ -2417,6 +2726,27 @@
 }
 
 @media (max-width: 640px) {
+  .lp-why-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-why-cell {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lp-why-cell:nth-child(2n),
+  .lp-why-cell:nth-child(4n),
+  .lp-why-cell:nth-child(n + 5),
+  .lp-why-cell:nth-child(n + 7) {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lp-why-cell:last-child {
+    border-bottom: none;
+  }
+
   .lp-eco-grid {
     grid-template-columns: 1fr;
   }

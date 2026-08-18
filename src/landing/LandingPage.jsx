@@ -3,9 +3,11 @@ import "./landing.css";
 import { useReveal } from "./useReveal";
 import Nav from "./sections/Nav";
 import Hero from "./sections/Hero";
+import WhyArena from "./sections/WhyArena";
 import MeetThePeople from "./sections/MeetThePeople";
 import Loop from "./sections/Loop";
 import WhoArenaIsFor from "./sections/WhoArenaIsFor";
+import TheGap from "./sections/TheGap";
 import Pricing from "./sections/Pricing";
 import Footer from "./sections/Footer";
 
@@ -28,10 +30,12 @@ export default function LandingPage() {
       <Nav />
       <main>
         <Hero />
-        <MeetThePeople />
+        <WhyArena />
+        <TheGap />
         <Loop />
         <WhoArenaIsFor />
         <Pricing />
+        <MeetThePeople />
       </main>
       <Footer />
     </div>

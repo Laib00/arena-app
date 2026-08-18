@@ -7,6 +7,7 @@ const COLUMNS = [
     links: [
       { label: "How it works", href: "#how-it-works" },
       { label: "Who Arena is for", href: "#who-arena-is-for" },
+      { label: "The Gap", href: "#the-gap" },
       { label: "The clients", href: "#clients" },
       { label: "Roadmap", href: "#roadmap" },
       { label: "Pricing", href: "#pricing" },
