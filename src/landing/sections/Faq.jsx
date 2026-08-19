@@ -3,32 +3,44 @@ import { Plus } from "lucide-react";
 
 const ITEMS = [
   {
-    q: "Is this trying to replace my coach?",
-    a: "The opposite, and it's the whole reason Arena is built the way it is. The AI plays the client and reports observations — how many turns you spoke in, how many questions you asked, where the client felt pushed. It never tells you what to do differently. That judgement belongs to a human who knows your market, your method and you.",
+    q: "Why do professionals need deliberate practice?",
+    a: "Knowledge explains what to do. Deliberate practice develops the ability to do it under pressure. Athletes, soldiers, pilots, firefighters, doctors, musicians and actors rehearse repeatedly before performance matters. Conversation-based professionals need the same opportunity.",
   },
   {
-    q: "Who is Arena for right now?",
-    a: "Singapore property agents. Every persona, budget, objection and scenario has been written for that market specifically rather than translated from a generic sales course. Financial advisors are the next industry we're opening up, and the personas for it are already written.",
+    q: "Why was The Arena built?",
+    a: "The Arena was built to close the missing gap between professional knowledge and real-world capability. Courses can teach principles, but professionals also need a safe, repeatable place to practise difficult conversations, reflect, receive feedback and return sharper.",
   },
   {
-    q: "How is this different from just practising with ChatGPT?",
-    a: "You can absolutely ask a chatbot to roleplay a buyer. It will be agreeable, forget its own budget halfway through, and eventually agree with everything you say. Arena's clients hold a fixed persona with a real constraint, and the Impossible ones are built so that you cannot win — only handle it well. Then there's the structured debrief and the record your coach can actually review.",
+    q: "What is The Arena?",
+    a: "The Arena is a deliberate-practice platform for conversation-based professionals. It lets people rehearse realistic client conversations, reflect on their choices, receive customer and coach feedback, and repeat until better judgment becomes natural.",
   },
   {
-    q: "Does it work on my phone?",
-    a: "Yes. It runs in the browser on a phone, tablet or laptop with nothing to install. Voice is coming in the next phase, which will make the phone the more natural way to use it.",
+    q: "Who is The Arena for?",
+    a: "The Arena is built first for real estate salespersons\u2014especially new agents, agents in their first one to three years, and experienced professionals rebuilding their foundations. It also supports coaches, team leaders and organisations.",
   },
   {
-    q: "What happens to my transcripts?",
-    a: "They're stored against your account so you can review any past session. If you're part of a team, your manager can see your sessions — that's the point of the manager view. If you signed up on your own, nobody else can see them.",
+    q: "How does practice in The Arena work?",
+    a: "You enter a realistic scenario, respond in your own words and move through a seven-stage loop: practise, reflect, receive customer feedback, re-reflect, notice facts, learn from a human coach and repeat.",
   },
   {
-    q: "Can I upload recordings of real client meetings?",
-    a: "Not yet, but it's high on the list. The goal is to run a real call through the same debrief as a practice one, so a manager can compare what someone does in the arena with what they do in the field.",
+    q: "Does The Arena replace human coaches?",
+    a: "No. AI simulates the customer and creates more opportunities to practise. Human coaches teach the method, interpret performance and set the professional standard.",
   },
   {
-    q: "Why is founder pricing so low?",
-    a: "Because it's early and you'd be helping us find what's broken. Founder members are grandfathered permanently — as voice, coaching and video land, your price stays where it started.",
+    q: "What skills can real estate salespersons practise?",
+    a: "Salespersons can practise opening conversations, asking better questions, explaining property decisions, handling hesitation and objections, reading client situations and communicating without sounding scripted.",
+  },
+  {
+    q: "Is The Arena another online course?",
+    a: "No. Courses primarily deliver information. The Arena is practice infrastructure: a safe place to apply what you know under pressure, examine what happened and try again.",
+  },
+  {
+    q: "Why is reflection included twice in the learning loop?",
+    a: "The first reflection captures your intention before feedback influences you. After hearing the simulated customer\u2019s perspective, re-reflection helps you compare intent with impact and update your judgment.",
+  },
+  {
+    q: "How can teams and coaches use The Arena?",
+    a: "Coaches can review meaningful moments and apply their methodology at scale. Leaders can see practice patterns and readiness across a team instead of relying only on course attendance or completion.",
   },
 ];
 
@@ -36,31 +48,43 @@ export default function Faq() {
   const [open, setOpen] = useState(0);
 
   return (
-    <section className="lp-section lp-section--cream" id="faq">
+    <section className="lp-section lp-faq-dark" id="faq">
       <div className="lp-wrap">
-        <div className="lp-head lp-head--center lp-reveal">
-          <span className="lp-eyebrow">FAQ</span>
-          <h2 className="lp-h2">Questions worth asking first.</h2>
-        </div>
+        <div className="lp-faq-dark-layout lp-reveal">
+          <div className="lp-faq-dark-intro">
+            <span className="lp-faq-dark-eyebrow">Questions, answered</span>
+            <h2 className="lp-faq-dark-h">
+              What do you want to know about Arena?
+            </h2>
+            <p className="lp-faq-dark-sub">
+            </p>
+          </div>
 
-        <div className="lp-faq lp-reveal">
-          {ITEMS.map((item, i) => (
-            <div key={item.q} className={`lp-faq-item${open === i ? " is-open" : ""}`}>
-              <button
-                className="lp-faq-q"
-                onClick={() => setOpen(open === i ? -1 : i)}
-                aria-expanded={open === i}
+          <div className="lp-faq-dark-list">
+            {ITEMS.map((item, i) => (
+              <div
+                key={item.q}
+                className={`lp-faq-dark-item${open === i ? " is-open" : ""}`}
               >
-                {item.q}
-                <Plus size={20} strokeWidth={2} />
-              </button>
-              <div className="lp-faq-a">
-                <div>
-                  <p>{item.a}</p>
+                <button
+                  className="lp-faq-dark-q"
+                  onClick={() => setOpen(open === i ? -1 : i)}
+                  aria-expanded={open === i}
+                >
+                  <span className="lp-faq-dark-num">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="lp-faq-dark-label">{item.q}</span>
+                  <Plus size={18} strokeWidth={2.2} />
+                </button>
+                <div className="lp-faq-dark-a">
+                  <div>
+                    <p>{item.a}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>

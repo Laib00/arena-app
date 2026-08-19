@@ -7,8 +7,11 @@ import WhyArena from "./sections/WhyArena";
 import MeetThePeople from "./sections/MeetThePeople";
 import Loop from "./sections/Loop";
 import WhoArenaIsFor from "./sections/WhoArenaIsFor";
+import DailyPractice from "./sections/DailyPractice";
 import TheGap from "./sections/TheGap";
+import LearningLoop from "./sections/LearningLoop";
 import Pricing from "./sections/Pricing";
+import Faq from "./sections/Faq";
 import Footer from "./sections/Footer";
 
 export default function LandingPage() {
@@ -32,10 +35,13 @@ export default function LandingPage() {
         <Hero />
         <WhyArena />
         <TheGap />
+        <LearningLoop />
         <Loop />
         <WhoArenaIsFor />
+        <DailyPractice />
         <Pricing />
         <MeetThePeople />
+        <Faq />
       </main>
       <Footer />
     </div>

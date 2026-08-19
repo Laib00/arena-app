@@ -1488,13 +1488,127 @@
 }
 
 /* ==========================================================================
+   Daily practice
+   ========================================================================== */
+
+.lp-daily {
+  --daily-brown: #261912;
+  --daily-brown-soft: rgba(255, 255, 255, 0.08);
+  --daily-muted: rgba(255, 236, 220, 0.58);
+  background: var(--daily-brown);
+  color: #fff;
+  padding: 88px 0;
+}
+
+.lp-daily-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 48px 64px;
+  align-items: center;
+}
+
+.lp-daily-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--daily-muted);
+  margin-bottom: 22px;
+}
+
+.lp-daily-h {
+  font-family: var(--sans);
+  font-size: clamp(34px, 4.2vw, 52px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.lp-daily-h-accent {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent);
+}
+
+.lp-daily-cards {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.lp-daily-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  padding: 22px 22px 20px;
+  border-radius: 22px;
+}
+
+.lp-daily-card--course {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.lp-daily-card--arena {
+  background: var(--accent-deep);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px rgba(254, 106, 0, 0.28);
+}
+
+.lp-daily-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--daily-muted);
+}
+
+.lp-daily-card--arena .lp-daily-card-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.lp-daily-card-word {
+  display: block;
+  margin: auto 0;
+  font-family: var(--sans);
+  font-size: clamp(42px, 5vw, 56px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.lp-daily-card-note {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--daily-muted);
+}
+
+.lp-daily-card--arena .lp-daily-card-note {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.lp-daily-arrow {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ==========================================================================
    The Gap
    ========================================================================== */
 
 .lp-gap {
   overflow: hidden;
-  padding-top: 120px;
-  padding-bottom: 120px;
+  padding-top: 80px;
+  padding-bottom: 70px;
 }
 
 .lp-gap-inner {
@@ -1504,10 +1618,11 @@
   grid-template-columns: minmax(280px, 0.72fr) minmax(380px, 1.28fr);
   gap: 48px 56px;
   align-items: center;
+  max-width: 1280px;
 }
 
 .lp-gap-copy {
-  padding: 12px 28px 12px 8px;
+  padding: 12px 0;
 }
 
 .lp-gap-eyebrow {
@@ -1518,8 +1633,7 @@
   text-transform: uppercase;
   color: var(--accent);
   padding-bottom: 10px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--accent);
+  margin-bottom: 80px;
 }
 
 .lp-gap-h {
@@ -1531,10 +1645,10 @@
   color: var(--ink);
 }
 
-.lp-gap-sub {
-  margin-top: 12px;
+.lp p.lp-gap-sub {
+  margin-top: 20px;
   font-family: var(--sans);
-  font-size: clamp(26px, 3.2vw, 40px);
+  font-size: clamp(16px, 2.2vw, 26px);
   font-weight: 400;
   line-height: 1.22;
   letter-spacing: -0.02em;
@@ -1547,7 +1661,7 @@
   margin: 48px 0 0;
   padding: 0;
   display: grid;
-  gap: 28px;
+  gap: 58px;
   max-width: 460px;
 }
 
@@ -1574,7 +1688,6 @@
   height: 82%;
   object-fit: contain;
   display: block;
-  mix-blend-mode: screen;
 }
 
 .lp-gap-point strong {
@@ -1596,11 +1709,210 @@
   min-width: 0;
 }
 
+@media (min-width: 941px) {
+  .lp-gap-visual {
+    transform: translateY(120px);
+  }
+}
+
 .lp-gap-visual img {
   display: block;
   width: 118%;
   max-width: none;
   height: auto;
+}
+
+/* ==========================================================================
+   Learning loop
+   ========================================================================== */
+
+.arena-loop {
+  --al-steel: #7a7a76;
+  --al-hair: #e7e6e2;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 100px 24px 120px;
+}
+
+.al-head {
+  max-width: 1280px;
+  margin: 0 auto 90px;
+}
+
+.al-head h2 {
+  max-width: 680px;
+}
+
+.al-head h2 {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: clamp(32px, 4.4vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  margin: 0 0 22px;
+}
+
+.al-head h2 span {
+  color: var(--accent);
+}
+
+.arena-loop .al-head p {
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--al-steel);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.al-head p b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.al-track-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.al-track-wrap--mobile {
+  display: none;
+}
+
+.al-track {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.al-track::before {
+  content: "";
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  top: 27px;
+  height: 1px;
+  background: var(--al-hair);
+}
+
+.al-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 12px;
+  position: relative;
+}
+
+.al-node {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 20px;
+}
+
+.al-node svg {
+  width: 21px;
+  height: 21px;
+  color: var(--ink);
+}
+
+.al-step--final .al-node {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.al-step--final .al-node svg {
+  color: var(--paper);
+}
+
+.al-k {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.al-t {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.al-d {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--al-steel);
+}
+
+@media (max-width: 980px) {
+  .arena-loop .al-head p {
+    white-space: normal;
+  }
+
+  .al-track-wrap--desktop {
+    display: none;
+  }
+
+  .al-track-wrap--mobile {
+    display: block;
+    max-width: 520px;
+  }
+
+  .al-vtrack {
+    position: relative;
+  }
+
+  .al-vtrack::before {
+    content: "";
+    position: absolute;
+    left: 27px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--al-hair);
+  }
+
+  .al-vstep {
+    display: flex;
+    gap: 22px;
+    padding-bottom: 44px;
+    position: relative;
+  }
+
+  .al-vstep:last-child {
+    padding-bottom: 0;
+  }
+
+  .al-vstep .al-node {
+    margin-bottom: 0;
+    flex: 0 0 56px;
+  }
+
+  .al-txt {
+    padding-top: 8px;
+    text-align: left;
+  }
+
+  .al-vstep .al-k {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .al-vstep .al-t {
+    margin-bottom: 5px;
+  }
 }
 
 .lp-waf-scroll {
@@ -2221,6 +2533,127 @@
    FAQ
    ========================================================================== */
 
+.lp-faq-dark {
+  background: #050505;
+  color: #fff;
+  padding: 100px 0;
+}
+
+.lp-faq-dark-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  gap: 48px 64px;
+  align-items: start;
+}
+
+.lp-faq-dark-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 22px;
+}
+
+.lp-faq-dark-h {
+  font-family: var(--sans);
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin: 0;
+}
+
+.lp-faq-dark-sub {
+  margin: 18px 0 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 32ch;
+}
+
+.lp-faq-dark-list {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lp-faq-dark-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lp-faq-dark-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 22px 0;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  transition: color 0.18s ease;
+}
+
+.lp-faq-dark-q:hover {
+  color: var(--accent);
+}
+
+.lp-faq-dark-num {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 24px;
+}
+
+.lp-faq-dark-label {
+  flex: 1;
+}
+
+.lp-faq-dark-q svg {
+  flex-shrink: 0;
+  color: var(--accent);
+  transition: transform 0.28s ease;
+}
+
+.lp-faq-dark-item.is-open .lp-faq-dark-q svg {
+  transform: rotate(45deg);
+}
+
+.lp-faq-dark-a {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-faq-dark-item.is-open .lp-faq-dark-a {
+  grid-template-rows: 1fr;
+}
+
+.lp-faq-dark-a > div {
+  overflow: hidden;
+}
+
+.lp-faq-dark-a p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0 0 24px 42px;
+  max-width: 62ch;
+}
+
+@media (max-width: 900px) {
+  .lp-faq-dark-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
 .lp-faq {
   max-width: 780px;
   margin: 0 auto;
@@ -2554,6 +2987,15 @@
 
   .lp-why-banner-mask {
     font-size: clamp(32px, 9vw, 52px);
+  }
+
+  .lp-daily-inner {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .lp-daily-cards {
+    justify-content: center;
   }
 
   .lp-gap-inner {
