@@ -139,6 +139,33 @@ export const ARENA_RESPONSIVE_CSS = `
     text-overflow: ellipsis;
   }
 
+  .arena-challenge-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    background: #fff7f0;
+    border-bottom: 1px solid rgba(253, 136, 65, 0.28);
+    color: #0A1628;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+  .arena-challenge-banner svg {
+    color: #fd8841;
+    flex-shrink: 0;
+  }
+  .arena-challenge-banner-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10.5px;
+    color: #c2410c;
+  }
+  .arena-challenge-banner-name {
+    font-weight: 600;
+    color: #0A1628;
+  }
+
   .arena-history-layout {
     display: flex;
     height: calc(100vh - 53px);

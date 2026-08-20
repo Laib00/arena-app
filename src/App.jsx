@@ -255,7 +255,7 @@ export default function App() {
 
   const scrollRef = useRef(null);
 
-  async function refreshRecentSessions() {
+  async function refreshRecentSessions(limit = 3) {
     if (!profile) return;
     const [{ data: ended }, { count }, { data: endedDates }] = await Promise.all([
       supabase
@@ -264,7 +264,7 @@ export default function App() {
         .eq("user_id", profile.id)
         .not("ended_at", "is", null)
         .order("ended_at", { ascending: false })
-        .limit(3),
+        .limit(limit),
       supabase
         .from("conversations")
         .select("*", { count: "exact", head: true })
@@ -284,6 +284,10 @@ export default function App() {
       totalEndedCount: count || 0,
       practiceStreak,
     });
+  }
+
+  async function expandReplayList() {
+    await refreshRecentSessions(20);
   }
 
   async function loadConversationIntoState(conv, { syncUrl = true } = {}) {
@@ -841,6 +845,7 @@ export default function App() {
             onStartChallenge={startTargetedChallenge}
             recentSessions={recentSessions}
             onReplay={replaySession}
+            onExpandReplayList={expandReplayList}
             onViewHistory={goHistory}
           />
         ) : (
@@ -849,6 +854,7 @@ export default function App() {
             client={client}
             aim={aim}
             setting={setting}
+            challenge={challenge}
             displayMessages={displayMessages}
             loading={loading}
             error={error}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Send, Award } from "lucide-react";
+import { Send, Award, Target } from "lucide-react";
 import { NAVY, GOLD, CREAM } from "../theme";
 import SessionDebrief from "../SessionDebrief";
 import GradeBadge from "../components/GradeBadge";
@@ -10,7 +10,7 @@ import NotesPanel from "../components/NotesPanel";
 import PageHeader from "../components/PageHeader";
 
 export default function ChatScreen({
-  himself, client, aim, setting, displayMessages, loading, error,
+  himself, client, aim, setting, challenge, displayMessages, loading, error,
   input, setInput, sendMessage, scrollRef, onEndSession, resetAll,
   conversationId, profile, onMenuToggle,
   debriefOpen, setDebriefOpen, callGemini, onSaveDebrief,
@@ -51,6 +51,14 @@ export default function ChatScreen({
           </>
         }
       />
+
+      {challenge?.label && (
+        <div className="arena-challenge-banner">
+          <Target size={15} strokeWidth={2.2} aria-hidden="true" />
+          <span className="arena-challenge-banner-label">Challenge</span>
+          <span className="arena-challenge-banner-name">{challenge.label}</span>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px", background: CREAM }}>

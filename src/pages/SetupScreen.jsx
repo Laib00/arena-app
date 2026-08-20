@@ -1,186 +1,10 @@
 import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Bookmark,
-  ChevronLeft,
-  ChevronRight,
-  CircleArrowDown,
-  CircleHelp,
-  Clock,
-  FileKey,
-  Flame,
-  GraduationCap,
-  Heart,
-  Landmark,
-  Layers,
-  MapPin,
-  MessageCircleOff,
-  Percent,
-  RotateCcw,
-  Shield,
-  ShieldCheck,
-  Star,
-  Tag,
-  Target,
-  Timer,
-  TrendingUp,
-  User,
-  Users,
-  UsersRound,
-  Wallet,
-  X,
-} from "lucide-react";
+import { ArrowRight, ChevronLeft, Flame, Lock, Phone, RotateCcw, Zap, X } from "lucide-react";
 import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
 import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
 import { formatStreakLabel } from "../streak";
 import GradeBadge from "../components/GradeBadge";
 import PersonaCard from "../components/PersonaCard";
-
-const CHALLENGE_GREEN = "#3D8B6E";
-const CHALLENGE_FALLBACK = "#E8F3EE";
-const CALL_FALLBACK = "#F8EEE4";
-const CARD_SANS = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-
-function PracticeEntryCard({
-  as: Tag = "button",
-  onClick,
-  disabled,
-  className,
-  background,
-  backgroundImage,
-  dark,
-  accent,
-  logo,
-  label,
-  title,
-  body,
-  cta,
-  extra,
-}) {
-  const text = dark ? "#fff" : NAVY;
-  const muted = dark ? "rgba(255,255,255,0.88)" : "#3F4A5A";
-
-  return (
-    <Tag
-      type={Tag === "button" ? "button" : undefined}
-      onClick={onClick}
-      className={className}
-      aria-disabled={disabled || undefined}
-      style={{
-        textAlign: "left",
-        border: "none",
-        cursor: onClick ? "pointer" : "default",
-        borderRadius: 24,
-        padding: 28,
-        minHeight: 292,
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        overflow: "hidden",
-        backgroundColor: background || "#fff",
-        color: text,
-        boxShadow: "0 8px 24px rgba(10,22,40,0.06)",
-        fontFamily: CARD_SANS,
-      }}
-    >
-      {backgroundImage && (
-        <img
-          src={backgroundImage}
-          alt=""
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-            transform: "scale(1.22)",
-            pointerEvents: "none",
-            zIndex: 0,
-          }}
-        />
-      )}
-      {extra}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          display: "flex",
-          flexDirection: "column",
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-        {logo}
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: accent,
-            letterSpacing: 1.2,
-            textTransform: "uppercase",
-            margin: "16px 0 10px",
-          }}
-        >
-          {label}
-        </div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.15, letterSpacing: -0.3, color: text, marginBottom: 12 }}>
-          {title}
-        </div>
-        <div style={{ width: 40, height: 3, background: accent, borderRadius: 2, marginBottom: 14 }} />
-        <p style={{ fontSize: 14, color: muted, lineHeight: 1.55, margin: 0, maxWidth: 260, fontWeight: 400 }}>
-          {body}
-        </p>
-        <div
-          style={{
-            marginTop: "auto",
-            paddingTop: 22,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 14,
-            fontWeight: 600,
-            color: dark ? "#fff" : accent,
-          }}
-        >
-          {cta}
-          <ArrowRight size={15} strokeWidth={2.2} color={accent} />
-        </div>
-      </div>
-    </Tag>
-  );
-}
-
-function CardLogoImg({ src, alt }) {
-  return (
-    <div
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: "50%",
-        overflow: "hidden",
-        background: "#fff",
-        flexShrink: 0,
-      }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        width={48}
-        height={48}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          transform: "scale(1.5)",
-          display: "block",
-        }}
-      />
-    </div>
-  );
-}
 
 function relativeTime(iso) {
   if (!iso) return "";
@@ -233,31 +57,6 @@ const CHALLENGE_BLURBS = {
   expertise_challenge: "A knowledgeable client asks detailed questions and tests whether the agent will bluff.",
 };
 
-const CHALLENGE_ICONS = {
-  price_objection: Tag,
-  rejection: Shield,
-  ask_commitment: Target,
-  commission_objection: Percent,
-  unrealistic_price: TrendingUp,
-  budget_mismatch: Wallet,
-  lowball_offer: CircleArrowDown,
-  trust_after_bad_agent: User,
-  competing_agents: Users,
-  exclusive_agreement: FileKey,
-  indecisive_client: CircleHelp,
-  family_disagreement: UsersRound,
-  financing_uncertainty: Landmark,
-  market_timing: Clock,
-  property_defect: AlertTriangle,
-  location_compromise: MapPin,
-  urgent_sale: Timer,
-  emotional_attachment: Heart,
-  demanding_guarantees: ShieldCheck,
-  information_overload: Layers,
-  silent_client: MessageCircleOff,
-  expertise_challenge: GraduationCap,
-};
-
 function ChallengeSetupModal({ open, onClose, onSelectChallenge }) {
   if (!open) return null;
 
@@ -274,54 +73,44 @@ function ChallengeSetupModal({ open, onClose, onSelectChallenge }) {
         className="arena-practice-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: 24, width: "100%", maxWidth: 560,
-          maxHeight: "calc(100vh - 96px)", overflowY: "auto", padding: "28px 24px 20px", position: "relative",
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520,
+          maxHeight: "calc(100vh - 96px)", overflowY: "auto", padding: "28px 28px 32px", position: "relative",
           boxShadow: "0 24px 64px rgba(10,22,40,0.28)",
         }}
       >
         <button
           onClick={onClose}
-          style={{
-            position: "absolute", top: 16, right: 16, width: 36, height: 36, borderRadius: "50%",
-            background: "#fff", border: "1px solid #E8E4DC", cursor: "pointer", color: "#9CA3AF",
-            display: "grid", placeItems: "center",
-          }}
+          style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}
           aria-label="Close"
         >
-          <X size={16} />
+          <X size={22} />
         </button>
 
         <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>
           Targeted practice
         </div>
-        <h2 style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 28, fontWeight: 700, margin: "0 0 8px", color: NAVY, letterSpacing: -0.4 }}>
+        <h2 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 28, margin: "0 0 6px", color: NAVY }}>
           Choose a challenge
         </h2>
-        <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 18, lineHeight: 1.5, maxWidth: 420 }}>
+        <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 22 }}>
           Pick one difficult moment to train. We'll match you with a random client and scenario focused on it.
         </p>
 
         <div className="arena-challenge-list">
-          {CHALLENGES.map((c) => {
-            const Icon = CHALLENGE_ICONS[c.id] || Target;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                className="arena-challenge-option"
-                onClick={() => onSelectChallenge(c)}
-              >
-                <span className="arena-challenge-option-icon">
-                  <Icon size={18} color={GOLD} strokeWidth={1.8} />
-                </span>
-                <span className="arena-challenge-option-copy">
-                  <span className="arena-challenge-option-title">{c.label}</span>
-                  <span className="arena-challenge-option-blurb">{CHALLENGE_BLURBS[c.id]}</span>
-                </span>
-                <ChevronRight size={18} color="#C4C0B6" strokeWidth={1.8} className="arena-challenge-option-chevron" />
-              </button>
-            );
-          })}
+          {CHALLENGES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="arena-challenge-option"
+              onClick={() => onSelectChallenge(c)}
+            >
+              <div className="arena-challenge-option-top">
+                <Zap size={18} color={GOLD} />
+                <span>{c.label}</span>
+              </div>
+              <p>{CHALLENGE_BLURBS[c.id]}</p>
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -565,13 +354,32 @@ export default function SetupScreen({
   industry, switchIndustry, himself, onEditProfile, industryPersonas, metPersonaIds,
   clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey, settingKey, setSettingKey,
   challenge, setChallenge,
-  canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onViewHistory,
+  canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onExpandReplayList, onViewHistory,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
+  const [replayExpanded, setReplayExpanded] = useState(false);
+  const [replayLoading, setReplayLoading] = useState(false);
 
   const rounds = recentSessions?.totalEndedCount ?? 0;
   const practiceStreak = recentSessions?.practiceStreak ?? 0;
+  const replayItems = recentSessions?.items || [];
+  const visibleReplayItems = replayExpanded ? replayItems : replayItems.slice(0, 3);
+  const canExpandReplay = (recentSessions?.totalEndedCount ?? 0) > 3 || replayItems.length > 3;
+
+  async function toggleReplayList() {
+    if (replayExpanded) {
+      setReplayExpanded(false);
+      return;
+    }
+    setReplayLoading(true);
+    try {
+      await onExpandReplayList?.();
+      setReplayExpanded(true);
+    } finally {
+      setReplayLoading(false);
+    }
+  }
 
   function openPracticeModal() {
     setChallenge(null);
@@ -598,118 +406,92 @@ export default function SetupScreen({
         </div>
       </header>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: 1.6,
-          textTransform: "uppercase",
-          marginBottom: 14,
-          fontFamily: CARD_SANS,
-        }}
-      >
-        <span style={{ color: NAVY }}>Enter</span>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: GOLD, display: "inline-block", flexShrink: 0 }} />
-        <span style={{ color: "#9CA3AF" }}>Practice</span>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 14 }}>
+        Enter a practice
       </div>
 
-      <div className="arena-home-practice-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18, marginBottom: 36 }}>
-        <PracticeEntryCard
+      <div className="arena-home-practice-grid" style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr", gap: 16, marginBottom: 36 }}>
+        {/* Open practice */}
+        <button
+          type="button"
           onClick={openPracticeModal}
           className="arena-open-practice-card"
-          background={NAVY}
-          dark
-          accent={GOLD}
-          label="COMPLETE PRACTICE"
-          title="Practice your deal"
-          body="Meet realistic prospects with their own needs, fears and objections."
-          cta="Start practicing"
-          logo={(
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                border: `1.5px solid ${GOLD}`,
-                display: "grid",
-                placeItems: "center",
-                background: "rgba(10,22,40,0.55)",
-              }}
-            >
-              <Star size={20} color={GOLD} strokeWidth={1.7} />
-            </div>
-          )}
-          extra={(
-            <div
-              className="arena-open-practice-cta"
-              style={{
-                position: "absolute",
-                right: 18,
-                bottom: 18,
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: GOLD,
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 2,
-              }}
-            >
-              <span className="arena-open-practice-ripple" aria-hidden="true" />
-              <span className="arena-open-practice-ripple arena-open-practice-ripple--delay" aria-hidden="true" />
-              <ArrowRight size={20} strokeWidth={2.2} style={{ position: "relative", zIndex: 1 }} />
-            </div>
-          )}
-        />
+          style={{
+            textAlign: "left", border: "none", cursor: "pointer", borderRadius: 18, padding: 28,
+            background: NAVY, color: "#fff", position: "relative", overflow: "hidden", minHeight: 220,
+            display: "flex", flexDirection: "column",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 12 }}>
+            Recommended · Open practice
+          </div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 28, lineHeight: 1.2, marginBottom: 10 }}>
+            Practice your deal
+          </div>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.72)", lineHeight: 1.55, margin: 0, maxWidth: 320 }}>
+            Meet a realistic prospect with their own needs, fears and objections. Your job is to discover them and move the conversation forward.
+          </p>
+          <div className="arena-open-practice-cta" style={{
+            marginTop: "auto", alignSelf: "flex-end", width: 44, height: 44, borderRadius: "50%",
+            background: GOLD, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+            position: "relative", zIndex: 1,
+          }}>
+            <span className="arena-open-practice-ripple" aria-hidden="true" />
+            <span className="arena-open-practice-ripple arena-open-practice-ripple--delay" aria-hidden="true" />
+            <ArrowRight size={20} style={{ position: "relative", zIndex: 1 }} />
+          </div>
+        </button>
 
-        <PracticeEntryCard
+        {/* Targeted */}
+        <button
+          type="button"
           onClick={() => setChallengeModalOpen(true)}
           className="arena-challenge-card"
-          background={CHALLENGE_FALLBACK}
-          backgroundImage="/Cards_background/Challenge_card_bg.png"
-          accent={CHALLENGE_GREEN}
-          label="Targeted practice"
-          title="Take a Challenge"
-          body="Train on difficult moments instead of running a full open conversation."
-          cta="Browse challenges"
-          logo={(
-            <CardLogoImg
-              src="/Cards_background/Cards_logo/challenge_card_logo.png"
-              alt=""
-            />
-          )}
-        />
+          style={{
+            textAlign: "left", background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24,
+            minHeight: 220, display: "flex", flexDirection: "column", cursor: "pointer", fontFamily: "inherit", color: "inherit",
+          }}
+        >
+          <Zap size={22} color={GOLD} style={{ marginBottom: 10 }} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 8 }}>
+            Targeted practice
+          </div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: NAVY, marginBottom: 8 }}>
+            Take a Challenge
+          </div>
+          <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5, margin: 0, flex: 1 }}>
+            Train one difficult moment instead of running a full open conversation.
+          </p>
+          <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: GOLD }}>
+            Choose challenge <ArrowRight size={16} />
+          </div>
+        </button>
 
-        <PracticeEntryCard
-          as="div"
-          disabled
-          background={CALL_FALLBACK}
-          backgroundImage="/Cards_background/Call_card_bg.png"
-          accent={GOLD}
-          label="Voice practice"
-          title="Make Your First Call"
-          body="No typing. Talk to a prospect and respond in real time."
-          cta="Launch call"
-          extra={(
-            <Bookmark
-              size={18}
-              color="#6B7280"
-              strokeWidth={1.7}
-              style={{ position: "absolute", top: 22, right: 22, zIndex: 2 }}
-            />
-          )}
-          logo={(
-            <CardLogoImg
-              src="/Cards_background/Cards_logo/call_card_logo.png"
-              alt=""
-            />
-          )}
-        />
+        {/* Voice — disabled */}
+        <div
+          style={{
+            background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24, minHeight: 220,
+            display: "flex", flexDirection: "column", opacity: 0.72, position: "relative",
+          }}
+          aria-disabled="true"
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <Phone size={22} color="#9CA3AF" />
+            <Lock size={16} color="#9CA3AF" />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: 1.1, textTransform: "uppercase", marginBottom: 8 }}>
+            Voice practice
+          </div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: NAVY, marginBottom: 8 }}>
+            Make Your First Call
+          </div>
+          <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5, margin: "0 0 16px" }}>
+            No typing. Talk to a prospect and respond in real time.
+          </p>
+          <div style={{ marginTop: "auto", fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 0.8 }}>
+            COMING SOON
+          </div>
+        </div>
       </div>
 
       <div className="arena-home-bottom-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
@@ -729,7 +511,7 @@ export default function SetupScreen({
             <div style={{ fontSize: 14, color: "#9CA3AF", padding: "12px 0" }}>No past sessions yet. Finish a practice to replay it here.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(recentSessions.items || []).slice(0, 3).map((s, i) => (
+              {visibleReplayItems.map((s, i) => (
                 <div
                   key={s.id}
                   style={{
@@ -762,17 +544,19 @@ export default function SetupScreen({
               ))}
             </div>
           )}
-          {(recentSessions?.items || []).length > 0 && (
+          {canExpandReplay && (
             <button
               type="button"
-              onClick={onViewHistory}
+              onClick={toggleReplayList}
+              disabled={replayLoading}
               style={{
                 marginTop: 14, width: "100%", padding: "10px", borderRadius: 10,
                 border: "1px solid #E8E4DC", background: "#fff", color: NAVY,
-                fontWeight: 600, fontSize: 13, cursor: "pointer",
+                fontWeight: 600, fontSize: 13, cursor: replayLoading ? "wait" : "pointer",
+                opacity: replayLoading ? 0.7 : 1,
               }}
             >
-              More
+              {replayLoading ? "Loading…" : replayExpanded ? "Less" : "More"}
             </button>
           )}
         </div>
