@@ -54,7 +54,7 @@ export default function WhyArena() {
             text="Practice makes us capable."
             mediaType="image"
             src="/orange_waves.png"
-            fillScale={1.3}
+            fillScale={1.9}
             parallax={34}
             reveal="wipe"
             trigger="view"
