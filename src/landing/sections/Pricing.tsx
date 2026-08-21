@@ -61,7 +61,7 @@ export default function Pricing() {
 
           <p className="lp-founder-desc">Early access to Arena at our founding price.</p>
 
-          <Link className="lp-founder-cta" to="/app?signup=1">
+          <Link className="lp-founder-cta" to="/dashboard?signup=1">
             Get Started
             <ArrowRight size={18} strokeWidth={2.4} />
           </Link>

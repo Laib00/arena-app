@@ -78,7 +78,7 @@ export default function Hero() {
               followMouse
               proximity={250}
               autoAnimate={false}
-              onClick={() => navigate("/app?signup=1")}
+              onClick={() => navigate("/dashboard?signup=1")}
             >
               Enter The Arena
               <span className="lp-hero-cta-mark" aria-hidden="true" />

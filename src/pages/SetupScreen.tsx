@@ -9,7 +9,6 @@ import {
   CircleHelp,
   Clock,
   FileKey,
-  Flame,
   GraduationCap,
   Heart,
   Landmark,
@@ -34,7 +33,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
 import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
-import { formatStreakLabel } from "../streak";
 import { getLevelProgress } from "../xp";
 import GradeBadge from "../components/GradeBadge";
 import PersonaCard from "../components/PersonaCard";
@@ -735,8 +733,8 @@ export default function SetupScreen({
 
   return (
     <div className="arena-setup-wrap" style={{ maxWidth: 1040, margin: "0 auto", padding: "28px 24px 80px" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, marginBottom: 36, flexWrap: "wrap" }}>
-        <div>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 36, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 280px", minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>
             Welcome to your arena
           </div>
@@ -744,11 +742,43 @@ export default function SetupScreen({
             What will you practise today?
           </h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "#fff", border: "1px solid #E8E4DC" }}>
-          <Flame size={18} color={GOLD} fill={GOLD} />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{formatStreakLabel(practiceStreak)}</div>
-            <div style={{ fontSize: 11, color: "#6B7280" }}>Current practice streak</div>
+
+        <div
+          id="arena-progress"
+          style={{
+            flex: "0 1 260px",
+            width: "100%",
+            maxWidth: 280,
+            background: "#fff",
+            border: "1px solid #E8E4DC",
+            borderRadius: 14,
+            padding: "12px 14px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+            <h3 style={{ fontFamily: "Georgia, serif", fontSize: 15, margin: 0, color: NAVY }}>Your progress</h3>
+            <span style={{ fontSize: 11, fontWeight: 600, color: GOLD, whiteSpace: "nowrap" }}>
+              Lv {progress.level} · {progress.title}
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
+            {[
+              { label: "ROUNDS", value: String(rounds) },
+              { label: "STREAK", value: String(practiceStreak) },
+              { label: "XP", value: String(totalXp) },
+            ].map((stat) => (
+              <div key={stat.label} style={{ background: CREAM, borderRadius: 8, padding: "6px 4px", textAlign: "center" }}>
+                <div style={{ fontSize: 8, fontWeight: 700, color: "#9CA3AF", letterSpacing: 0.6 }}>{stat.label}</div>
+                <div style={{ fontFamily: "Georgia, serif", fontSize: 15, color: NAVY, marginTop: 1 }}>{stat.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ height: 5, borderRadius: 999, background: "#EFEBE3", overflow: "hidden", marginBottom: 5 }}>
+            <div style={{ width: barWidth, height: "100%", background: GOLD, borderRadius: 999 }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6B7280", gap: 8 }}>
+            <span>{totalXp.toLocaleString()} XP</span>
+            <span style={{ textAlign: "right" }}>{nextLabel}</span>
           </div>
         </div>
       </header>
@@ -860,7 +890,7 @@ export default function SetupScreen({
         />
       </div>
 
-      <div className="arena-home-bottom-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
+      <div className="arena-home-bottom-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
         {/* Replay */}
         <div style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
@@ -925,35 +955,6 @@ export default function SetupScreen({
               {replayLoading ? "Loading…" : replayExpanded ? "Less" : "More"}
             </button>
           )}
-        </div>
-
-        {/* Progress */}
-        <div id="arena-progress" style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-            <h3 style={{ fontFamily: "Georgia, serif", fontSize: 22, margin: 0, color: NAVY }}>Your progress</h3>
-            <span style={{ fontSize: 13, fontWeight: 600, color: GOLD }}>
-              Level {progress.level} · {progress.title}
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-            {[
-              { label: "ROUNDS", value: String(rounds) },
-              { label: "STREAK", value: String(practiceStreak) },
-              { label: "XP", value: String(totalXp) },
-            ].map((stat) => (
-              <div key={stat.label} style={{ background: CREAM, borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: 0.8 }}>{stat.label}</div>
-                <div style={{ fontFamily: "Georgia, serif", fontSize: 22, color: NAVY, marginTop: 4 }}>{stat.value}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ height: 8, borderRadius: 999, background: "#EFEBE3", overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ width: barWidth, height: "100%", background: GOLD, borderRadius: 999 }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6B7280" }}>
-            <span>{totalXp.toLocaleString()} XP</span>
-            <span>{nextLabel}</span>
-          </div>
         </div>
       </div>
 

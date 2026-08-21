@@ -19,6 +19,7 @@ import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
 import { computePracticeStreak } from "./streak";
 import { sessionHasChallenge, xpForSession } from "./xp";
+import { APP_BASE, appPath } from "./routes";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import SetupScreen from "./pages/SetupScreen";
@@ -106,7 +107,22 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Landing CTAs use ?signup=1 — strip once logged in so home stays /app
+  // After Google OAuth, Supabase may land on /dashboard#access_token=... — replace so Back skips the hash URL
+  useEffect(() => {
+    if (!session) return;
+    const { hash, pathname, search } = window.location;
+    if (!hash) return;
+    if (
+      hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      hash.includes("error") ||
+      hash.includes("code=")
+    ) {
+      window.history.replaceState(null, "", `${pathname}${search}` || appPath());
+    }
+  }, [session]);
+
+  // Landing CTAs use ?signup=1 — strip once logged in so home stays /dashboard
   useEffect(() => {
     if (!session) return;
     if (!searchParams.has("signup") && !searchParams.has("mode")) return;
@@ -116,17 +132,17 @@ export default function App() {
     setSearchParams(next, { replace: true });
   }, [session, searchParams, setSearchParams]);
 
-  const goHome = () => navigate("/app");
-  const goHistory = () => navigate("/app/history");
-  const goProfile = () => navigate("/app/profile");
-  const goTeam = () => navigate("/app/team");
-  const goChat = (id: string) => navigate(`/app/chat/${id}`);
+  const goHome = () => navigate(appPath());
+  const goHistory = () => navigate(appPath("/history"));
+  const goProfile = () => navigate(appPath("/profile"));
+  const goTeam = () => navigate(appPath("/team"));
+  const goChat = (id: string) => navigate(appPath(`/chat/${id}`));
 
-  const chatMatch = matchPath({ path: "/app/chat/:conversationId", end: true }, location.pathname);
+  const chatMatch = matchPath({ path: `${APP_BASE}/chat/:conversationId`, end: true }, location.pathname);
   const routeConvId = chatMatch?.params?.conversationId || null;
-  const isHistory = Boolean(matchPath({ path: "/app/history", end: true }, location.pathname));
-  const isProfile = Boolean(matchPath({ path: "/app/profile", end: true }, location.pathname));
-  const isTeam = Boolean(matchPath({ path: "/app/team", end: true }, location.pathname));
+  const isHistory = Boolean(matchPath({ path: `${APP_BASE}/history`, end: true }, location.pathname));
+  const isProfile = Boolean(matchPath({ path: `${APP_BASE}/profile`, end: true }, location.pathname));
+  const isTeam = Boolean(matchPath({ path: `${APP_BASE}/team`, end: true }, location.pathname));
 
   useEffect(() => {
     if (!session) {
@@ -772,7 +788,7 @@ export default function App() {
     goHome();
   }
 
-  // Keep chat UI in sync with /app/chat/:id (load on refresh, clear when leaving)
+  // Keep chat UI in sync with /dashboard/chat/:id (load on refresh, clear when leaving)
   useEffect(() => {
     if (!resumeChecked || !profile) return;
 
@@ -796,7 +812,7 @@ export default function App() {
         if (conv?.client_snapshot) {
           await loadConversationIntoState(conv, { syncUrl: false });
         } else {
-          navigate("/app", { replace: true });
+          navigate(appPath(), { replace: true });
         }
       })();
       return () => { cancelled = true; };
@@ -877,7 +893,7 @@ export default function App() {
           openChatCount={0}
           onSave={persistAgentProfile}
           onBack={goHome}
-          onComplete={() => navigate("/app", { replace: true })}
+          onComplete={() => navigate(appPath(), { replace: true })}
           onSignOut={() => supabase.auth.signOut()}
         />
       </>
@@ -894,7 +910,7 @@ export default function App() {
 
   if (isTeam) {
     if (profile?.role !== "manager") {
-      return <Navigate to="/app" replace />;
+      return <Navigate to={appPath()} replace />;
     }
     return (
       <>
@@ -939,9 +955,9 @@ export default function App() {
     );
   }
 
-  // Unknown /app/* paths → home
-  if (!chatMatch && location.pathname !== "/app" && location.pathname !== "/app/") {
-    return <Navigate to="/app" replace />;
+  // Unknown /dashboard/* paths → home
+  if (!chatMatch && location.pathname !== APP_BASE && location.pathname !== `${APP_BASE}/`) {
+    return <Navigate to={appPath()} replace />;
   }
 
   return (

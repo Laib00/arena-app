@@ -25,7 +25,7 @@ const COLUMNS = [
   {
     title: "Company",
     links: [
-      { label: "Get early access", href: "/app?signup=1" },
+      { label: "Get early access", href: "/dashboard?signup=1" },
       { label: "FAQ", href: "#faq" },
       { label: "hello@arena.app", href: "mailto:hello@arena.app" },
     ],
@@ -69,7 +69,7 @@ export default function Footer() {
 
         <div className="lp-footer-bottom">
           <span>© {new Date().getFullYear()} Arena. All rights reserved.</span>
-          <Link to="/app?signup=1">Log in to Arena</Link>
+          <Link to="/dashboard?signup=1">Log in to Arena</Link>
         </div>
       </div>
     </footer>

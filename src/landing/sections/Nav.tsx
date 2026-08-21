@@ -50,10 +50,10 @@ export default function Nav() {
           </div>
 
           <div className="lp-nav-actions">
-            <Link className="lp-btn lp-btn--accent" to="/app?signup=1">
+            <Link className="lp-btn lp-btn--accent" to="/dashboard?signup=1">
               Get early access
             </Link>
-            <Link className="lp-nav-login" to="/app?signup=1">
+            <Link className="lp-nav-login" to="/dashboard?signup=1">
               Log In
             </Link>
           </div>
@@ -74,12 +74,12 @@ export default function Nav() {
               {l.label}
             </a>
           ))}
-          <Link to="/app?signup=1" onClick={() => setOpen(false)}>
+          <Link to="/dashboard?signup=1" onClick={() => setOpen(false)}>
             Log In
           </Link>
           <Link
             className="lp-btn lp-btn--accent"
-            to="/app?signup=1"
+            to="/dashboard?signup=1"
             onClick={() => setOpen(false)}
           >
             Get early access
