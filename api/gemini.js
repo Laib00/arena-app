@@ -1,10 +1,25 @@
 // Vercel serverless function — keeps GEMINI_API_KEY on the server.
 // The browser never sees the key; it only talks to this endpoint.
 //
-// Required environment variable (set in Vercel dashboard, not in code):
-//   GEMINI_API_KEY   your Gemini API key from https://aistudio.google.com/apikey
-// Optional:
-//   GEMINI_MODEL      defaults to "gemini-3.6-flash"
+// Provider switch (local .env or Vercel):
+//   LLM_PROVIDER      gemini | groq | deepseek | kimi  (default: gemini)
+//
+// Gemini:
+//   GEMINI_API_KEY      https://aistudio.google.com/apikey
+//   GEMINI_MODEL        default gemini-3.6-flash
+//
+// Groq:
+//   GROQ_API_KEY
+//   GROQ_MODEL          default openai/gpt-oss-20b
+//
+// DeepSeek:
+//   DEEPSEEK_API_KEY    https://platform.deepseek.com
+//   DEEPSEEK_MODEL      default deepseek-chat
+//
+// Kimi (Moonshot):
+//   KIMI_API_KEY        https://platform.kimi.ai/console/api-keys
+//   KIMI_MODEL          default kimi-k3
+//   KIMI_API_BASE       default https://api.moonshot.ai/v1
 
 // export default async function handler(req, res) {
 //   if (req.method !== "POST") {
@@ -77,9 +92,16 @@ export default async function handler(req, res) {
   const provider = (process.env.LLM_PROVIDER || "gemini").toLowerCase();
  
   try {
-    const text = provider === "groq"
-      ? await callGroq(systemPrompt, contents)
-      : await callGemini(systemPrompt, contents);
+    let text;
+    if (provider === "groq") {
+      text = await callGroq(systemPrompt, contents);
+    } else if (provider === "deepseek") {
+      text = await callDeepSeek(systemPrompt, contents);
+    } else if (provider === "kimi") {
+      text = await callKimi(systemPrompt, contents);
+    } else {
+      text = await callGemini(systemPrompt, contents);
+    }
  
     if (!text) {
       return res.status(200).json({ text: "", warning: "No text returned by the model." });
@@ -120,6 +142,33 @@ async function callGemini(systemPrompt, contents) {
   return data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
 }
  
+function toChatMessages(systemPrompt, contents) {
+  return [
+    ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+    ...contents.map((c) => ({
+      role: c.role === "model" ? "assistant" : "user",
+      content: (c.parts || []).map((p) => p.text || "").join(""),
+    })),
+  ];
+}
+
+async function callOpenAICompatible({ apiKey, model, url, label, systemPrompt, contents }) {
+  const messages = toChatMessages(systemPrompt, contents);
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, max_tokens: 1000 }),
+  });
+  const data = await r.json();
+
+  if (!r.ok) {
+    const err = new Error(data?.error?.message || `${label} API error (${r.status})`);
+    err.status = r.status;
+    throw err;
+  }
+  return data?.choices?.[0]?.message?.content || "";
+}
+
 async function callGroq(systemPrompt, contents) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -127,29 +176,47 @@ async function callGroq(systemPrompt, contents) {
     err.status = 500;
     throw err;
   }
-  const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-  const url = "https://api.groq.com/openai/v1/chat/completions";
- 
-  // Translate our Gemini-shaped contents into OpenAI-style messages.
-  const messages = [
-    ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-    ...contents.map((c) => ({
-      role: c.role === "model" ? "assistant" : "user",
-      content: (c.parts || []).map((p) => p.text || "").join(""),
-    })),
-  ];
- 
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_completion_tokens: 1000 }),
+  return callOpenAICompatible({
+    apiKey,
+    model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    label: "Groq",
+    systemPrompt,
+    contents,
   });
-  const data = await r.json();
- 
-  if (!r.ok) {
-    const err = new Error(data?.error?.message || `Groq API error (${r.status})`);
-    err.status = r.status;
+}
+
+async function callDeepSeek(systemPrompt, contents) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    const err = new Error("Server is missing DEEPSEEK_API_KEY.");
+    err.status = 500;
     throw err;
   }
-  return data?.choices?.[0]?.message?.content || "";
+  return callOpenAICompatible({
+    apiKey,
+    model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+    url: "https://api.deepseek.com/chat/completions",
+    label: "DeepSeek",
+    systemPrompt,
+    contents,
+  });
+}
+
+async function callKimi(systemPrompt, contents) {
+  const apiKey = process.env.KIMI_API_KEY;
+  if (!apiKey) {
+    const err = new Error("Server is missing KIMI_API_KEY.");
+    err.status = 500;
+    throw err;
+  }
+  const base = (process.env.KIMI_API_BASE || "https://api.moonshot.ai/v1").replace(/\/$/, "");
+  return callOpenAICompatible({
+    apiKey,
+    model: process.env.KIMI_MODEL || "kimi-k3",
+    url: `${base}/chat/completions`,
+    label: "Kimi",
+    systemPrompt,
+    contents,
+  });
 }

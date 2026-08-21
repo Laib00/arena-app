@@ -62,14 +62,13 @@ Trainee: ${himself.name}. Client persona: ${client.name} (grade ${client.grade},
 
 From the transcript, produce plain-text observations with approximate numbers where possible. Use these exact labels on their own lines:
 TALK RATIO
-TONE / ENERGY
-PACE
 KEY BEHAVIOURS OBSERVED
 OTHER MEASUREMENTS
 
 Rules:
 - Facts and counts only (e.g. "Agent spoke in roughly 65% of turns", "Agent asked 4 questions", "Client interrupted twice").
 - No recommendations. No praise. No criticism framed as coaching.
+- Do not report tone, vocal energy, pitch, volume, speaking rate, or pace — those cannot be measured from a text transcript.
 - If something cannot be measured from the transcript, say "Not enough data".
 - Under 200 words. No markdown.`;
 }
