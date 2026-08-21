@@ -704,10 +704,12 @@ export default function SetupScreen({
   const totalXp = recentSessions?.xp ?? 0;
   const progress = getLevelProgress(totalXp);
   const barWidth = `${Math.max(progress.percentToNext, progress.totalXp > 0 ? 2 : 0)}%`;
+  const xpRemaining = progress.isMaxLevel
+    ? 0
+    : Math.max(0, (progress.nextLevelXp ?? 0) - progress.totalXp);
   const nextLabel = progress.isMaxLevel
     ? "Max level"
-    : `Next level · ${progress.nextLevelXp!.toLocaleString()} XP`;
-  const xpIntoLevel = progress.totalXp - progress.levelStartXp;
+    : `${xpRemaining.toLocaleString()} XP to next level`;
   const replayItems = recentSessions?.items || [];
   const visibleReplayItems = replayExpanded ? replayItems : replayItems.slice(0, 3);
   const canExpandReplay = (recentSessions?.totalEndedCount ?? 0) > 3 || replayItems.length > 3;
@@ -949,7 +951,7 @@ export default function SetupScreen({
             <div style={{ width: barWidth, height: "100%", background: GOLD, borderRadius: 999 }} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6B7280" }}>
-            <span>{progress.isMaxLevel ? `${totalXp.toLocaleString()} XP` : `${xpIntoLevel.toLocaleString()} XP`}</span>
+            <span>{totalXp.toLocaleString()} XP</span>
             <span>{nextLabel}</span>
           </div>
         </div>
