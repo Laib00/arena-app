@@ -3,7 +3,6 @@ import type { CSSProperties, ElementType, MouseEventHandler, ReactNode } from "r
 import {
   AlertTriangle,
   ArrowRight,
-  Bookmark,
   ChevronLeft,
   ChevronRight,
   CircleArrowDown,
@@ -56,6 +55,7 @@ type PracticeEntryCardProps = {
   as?: "button" | "div";
   onClick?: MouseEventHandler<HTMLElement>;
   disabled?: boolean;
+  comingSoon?: boolean;
   className?: string;
   background?: string;
   backgroundImage?: string;
@@ -73,6 +73,7 @@ function PracticeEntryCard({
   as: Tag = "button",
   onClick,
   disabled,
+  comingSoon,
   className,
   background,
   backgroundImage,
@@ -88,17 +89,18 @@ function PracticeEntryCard({
   const CardTag: ElementType = Tag;
   const text = dark ? "#fff" : NAVY;
   const muted = dark ? "rgba(255,255,255,0.88)" : "#3F4A5A";
+  const isInactive = Boolean(disabled || comingSoon);
 
   return (
     <CardTag
       type={Tag === "button" ? "button" : undefined}
-      onClick={onClick}
+      onClick={isInactive ? undefined : onClick}
       className={className}
-      aria-disabled={disabled || undefined}
+      aria-disabled={isInactive || undefined}
       style={{
         textAlign: "left",
         border: "none",
-        cursor: onClick ? "pointer" : "default",
+        cursor: isInactive ? "default" : onClick ? "pointer" : "default",
         borderRadius: 24,
         padding: 28,
         minHeight: 292,
@@ -139,6 +141,8 @@ function PracticeEntryCard({
           flexDirection: "column",
           flex: 1,
           minHeight: 0,
+          filter: comingSoon ? "blur(2.5px)" : undefined,
+          opacity: comingSoon ? 0.72 : 1,
         }}
       >
         {logo}
@@ -177,6 +181,35 @@ function PracticeEntryCard({
           <ArrowRight size={15} strokeWidth={2.2} color={accent} />
         </div>
       </div>
+      {comingSoon && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 3,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(248, 246, 241, 0.38)",
+            backdropFilter: "blur(1px)",
+            WebkitBackdropFilter: "blur(1px)",
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "Georgia, 'Times New Roman', serif",
+              fontSize: 22,
+              fontWeight: 700,
+              color: "#6B7280",
+              letterSpacing: 0.2,
+            }}
+          >
+            Coming Soon
+          </span>
+        </div>
+      )}
     </CardTag>
   );
 }
@@ -799,6 +832,7 @@ export default function SetupScreen({
         <PracticeEntryCard
           as="div"
           disabled
+          comingSoon
           background={CALL_FALLBACK}
           backgroundImage="/Cards_background/Call_card_bg.png"
           accent={GOLD}
@@ -806,14 +840,6 @@ export default function SetupScreen({
           title="Make Your First Call"
           body="No typing. Talk to a prospect and respond in real time."
           cta="Launch call"
-          extra={(
-            <Bookmark
-              size={18}
-              color="#6B7280"
-              strokeWidth={1.7}
-              style={{ position: "absolute", top: 22, right: 22, zIndex: 2 }}
-            />
-          )}
           logo={(
             <CardLogoImg
               src="/Cards_background/Cards_logo/call_card_logo.png"
