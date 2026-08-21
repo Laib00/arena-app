@@ -7,6 +7,7 @@ type SavedProfileRow = {
   agent_profile: unknown;
   industry: unknown;
   full_name: unknown;
+  xp?: number | null;
 };
 
 async function saveProfileFields(
@@ -17,7 +18,7 @@ async function saveProfileFields(
     .from("profiles")
     .update(fields)
     .eq("id", userId)
-    .select("id, agent_profile, industry, full_name");
+    .select("id, agent_profile, industry, full_name, xp");
   if (error) throw error;
   if (!data?.length) {
     throw new Error(

@@ -35,6 +35,7 @@ import type { LucideIcon } from "lucide-react";
 import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
 import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
 import { formatStreakLabel } from "../streak";
+import { getLevelProgress } from "../xp";
 import GradeBadge from "../components/GradeBadge";
 import PersonaCard from "../components/PersonaCard";
 import type {
@@ -657,6 +658,7 @@ type RecentSessions = {
   items: ConversationSession[];
   totalEndedCount: number;
   practiceStreak: number;
+  xp: number;
 };
 
 type SetupScreenProps = {
@@ -699,6 +701,13 @@ export default function SetupScreen({
 
   const rounds = recentSessions?.totalEndedCount ?? 0;
   const practiceStreak = recentSessions?.practiceStreak ?? 0;
+  const totalXp = recentSessions?.xp ?? 0;
+  const progress = getLevelProgress(totalXp);
+  const barWidth = `${Math.max(progress.percentToNext, progress.totalXp > 0 ? 2 : 0)}%`;
+  const nextLabel = progress.isMaxLevel
+    ? "Max level"
+    : `Next level · ${progress.nextLevelXp!.toLocaleString()} XP`;
+  const xpIntoLevel = progress.totalXp - progress.levelStartXp;
   const replayItems = recentSessions?.items || [];
   const visibleReplayItems = replayExpanded ? replayItems : replayItems.slice(0, 3);
   const canExpandReplay = (recentSessions?.totalEndedCount ?? 0) > 3 || replayItems.length > 3;
@@ -916,17 +925,19 @@ export default function SetupScreen({
           )}
         </div>
 
-        {/* Progress placeholder */}
+        {/* Progress */}
         <div id="arena-progress" style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 18, padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <h3 style={{ fontFamily: "Georgia, serif", fontSize: 22, margin: 0, color: NAVY }}>Your progress</h3>
-            <span style={{ fontSize: 13, fontWeight: 600, color: GOLD }}>Level 1 · Rookie</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: GOLD }}>
+              Level {progress.level} · {progress.title}
+            </span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
             {[
               { label: "ROUNDS", value: String(rounds) },
-              { label: "PRACTICE", value: "—" },
-              { label: "XP", value: "0" },
+              { label: "STREAK", value: String(practiceStreak) },
+              { label: "XP", value: String(totalXp) },
             ].map((stat) => (
               <div key={stat.label} style={{ background: CREAM, borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: 0.8 }}>{stat.label}</div>
@@ -935,11 +946,11 @@ export default function SetupScreen({
             ))}
           </div>
           <div style={{ height: 8, borderRadius: 999, background: "#EFEBE3", overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ width: "4%", height: "100%", background: GOLD, borderRadius: 999 }} />
+            <div style={{ width: barWidth, height: "100%", background: GOLD, borderRadius: 999 }} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6B7280" }}>
-            <span>0 XP</span>
-            <span>Next level · 1,000 XP</span>
+            <span>{progress.isMaxLevel ? `${totalXp.toLocaleString()} XP` : `${xpIntoLevel.toLocaleString()} XP`}</span>
+            <span>{nextLabel}</span>
           </div>
         </div>
       </div>

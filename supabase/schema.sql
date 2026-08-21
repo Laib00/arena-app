@@ -19,6 +19,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists industry text not null default 'Property';
 alter table public.profiles add column if not exists agent_profile jsonb;
+alter table public.profiles add column if not exists xp integer not null default 0;
 
 alter table public.profiles enable row level security;
 
@@ -120,6 +121,7 @@ alter table public.conversations add column if not exists client_snapshot jsonb;
 alter table public.conversations add column if not exists aim_snapshot jsonb;
 alter table public.conversations add column if not exists setting_snapshot jsonb;
 alter table public.conversations add column if not exists challenge_snapshot jsonb;
+alter table public.conversations add column if not exists xp_awarded integer;
 
 alter table public.conversations enable row level security;
 

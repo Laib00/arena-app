@@ -73,6 +73,7 @@ export interface UserProfile {
   email?: string | null;
   full_name?: string | null;
   role?: string | null;
+  xp?: number | null;
   [key: string]: unknown;
 }
 
@@ -89,6 +90,7 @@ export interface ConversationSession {
   himself_snapshot?: AgentProfile | null;
   client_snapshot?: (Persona & { _challenge?: Challenge | null }) | null;
   challenge_snapshot?: Challenge | null;
+  xp_awarded?: number | null;
   [key: string]: unknown;
 }
 

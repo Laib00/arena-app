@@ -18,6 +18,7 @@ import { buildSystemPrompt } from "./prompts";
 import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
 import { computePracticeStreak } from "./streak";
+import { sessionHasChallenge, xpForSession } from "./xp";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import SetupScreen from "./pages/SetupScreen";
@@ -39,6 +40,7 @@ import type {
 type AppUserProfile = UserProfile & {
   agent_profile?: AgentProfile | null;
   industry?: Industry | "Financial Planning" | string | null;
+  xp?: number | null;
 };
 
 type AppConversation = ConversationSession & {
@@ -50,6 +52,7 @@ type RecentSessions = {
   items: ConversationSession[];
   totalEndedCount: number;
   practiceStreak: number;
+  xp: number;
 };
 
 type StartRoleplayOptions = {
@@ -286,7 +289,12 @@ export default function App() {
   const [aimKey, setAimKey] = useState<string | null>(null);
   const [settingKey, setSettingKey] = useState<string>(SETTINGS[0].key);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
-  const [recentSessions, setRecentSessions] = useState<RecentSessions>({ items: [], totalEndedCount: 0, practiceStreak: 0 });
+  const [recentSessions, setRecentSessions] = useState<RecentSessions>({
+    items: [],
+    totalEndedCount: 0,
+    practiceStreak: 0,
+    xp: 0,
+  });
 
   const [displayMessages, setDisplayMessages] = useState<ChatMessage[]>([]);
   const [apiMessages, setApiMessages] = useState<ChatMessage[]>([]);
@@ -327,7 +335,79 @@ export default function App() {
       items: ended || [],
       totalEndedCount: count || 0,
       practiceStreak,
+      xp: Number(profile.xp) || 0,
     });
+  }
+
+  /** Mark a finished conversation as XP-awarded and bump profile.xp (idempotent). */
+  async function awardXpForConversation(conv: ConversationSession | AppConversation | null | undefined) {
+    if (!profile || !conv?.id) return 0;
+    if (conv.xp_awarded != null) return 0;
+
+    const amount = xpForSession({
+      grade: conv.client_grade,
+      hasChallenge: sessionHasChallenge(conv),
+    });
+
+    const { data: claimed, error: claimErr } = await supabase
+      .from("conversations")
+      .update({ xp_awarded: amount })
+      .eq("id", conv.id)
+      .eq("user_id", profile.id)
+      .is("xp_awarded", null)
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr) {
+      console.error("Failed to claim session XP:", claimErr.message);
+      return 0;
+    }
+    if (!claimed) return 0;
+
+    const { data: latest } = await supabase
+      .from("profiles")
+      .select("xp")
+      .eq("id", profile.id)
+      .maybeSingle();
+    const nextXp = (Number(latest?.xp) || 0) + amount;
+
+    try {
+      const row = await saveProfileFields(profile.id, { xp: nextXp });
+      const savedXp = Number(row.xp ?? nextXp) || nextXp;
+      setProfile((prev) => (prev ? { ...prev, xp: savedXp } : prev));
+      setRecentSessions((prev) => ({ ...prev, xp: savedXp }));
+      return amount;
+    } catch (e) {
+      console.error("Failed to save profile XP:", e);
+      return 0;
+    }
+  }
+
+  /** One-time catch-up for sessions ended before XP existed. */
+  async function backfillMissingSessionXp() {
+    if (!profile) return;
+    const { data: pending, error } = await supabase
+      .from("conversations")
+      .select("id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
+      .eq("user_id", profile.id)
+      .not("ended_at", "is", null)
+      .is("xp_awarded", null)
+      .limit(200);
+
+    if (error) {
+      // Column may not exist yet until add_profile_xp.sql is run
+      console.error("XP backfill query failed:", error.message);
+      return;
+    }
+    if (!pending?.length) return;
+
+    let gained = 0;
+    for (const conv of pending) {
+      gained += await awardXpForConversation(conv);
+    }
+    if (gained > 0) {
+      await refreshRecentSessions();
+    }
   }
 
   async function expandReplayList() {
@@ -383,10 +463,11 @@ export default function App() {
       if (cancelled) return;
       setOpenConversations(openConvs || []);
       refreshMetPersonas();
-      refreshRecentSessions();
+      await refreshRecentSessions();
+      if (!cancelled) await backfillMissingSessionXp();
 
       // Stay on home after refresh/login — open chats remain in the sidebar to resume manually.
-      setResumeChecked(true);
+      if (!cancelled) setResumeChecked(true);
     })();
 
     return () => { cancelled = true; };
@@ -658,6 +739,23 @@ export default function App() {
       raw_text: rawParts.join("\n\n"),
     });
     await supabase.from("conversations").update({ ended_at: new Date().toISOString() }).eq("id", convId);
+
+    const { data: endedConv } = await supabase
+      .from("conversations")
+      .select("id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
+      .eq("id", convId)
+      .maybeSingle();
+
+    await awardXpForConversation(
+      endedConv || {
+        id: convId,
+        user_id: profile?.id || "",
+        client_grade: client?.grade,
+        challenge_snapshot: challenge,
+        client_snapshot: client,
+      }
+    );
+
     refreshOpenConversations();
     refreshRecentSessions();
   }
