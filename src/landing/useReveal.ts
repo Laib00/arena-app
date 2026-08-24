@@ -1,35 +1,30 @@
 import { useEffect, type CSSProperties, type RefObject } from "react";
 
 /**
- * Fades sections in as they scroll into view. Elements opt in with the
- * `lp-reveal` class; anything already on screen at mount is revealed
- * immediately so the top of the page never flashes empty.
+ * Reveals `.lp-reveal` elements. We used to rely on IntersectionObserver /
+ * scroll geometry; Chrome + overflow on ancestors left every section at
+ * opacity: 0. Reveal everything on mount so the landing never stays blank.
  */
 export function useReveal(rootRef: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
-    const targets = root.querySelectorAll(".lp-reveal");
+    const revealAll = () => {
+      root.querySelectorAll(".lp-reveal").forEach((el) => {
+        el.classList.add("is-in");
+      });
+    };
 
-    if (!("IntersectionObserver" in window)) {
-      targets.forEach((el) => el.classList.add("is-in"));
-      return;
-    }
+    revealAll();
+    // Fonts / layout can settle after first paint
+    const raf = requestAnimationFrame(revealAll);
+    const t = window.setTimeout(revealAll, 50);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add("is-in");
-          observer.unobserve(entry.target);
-        });
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -60px 0px" }
-    );
-
-    targets.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
   }, [rootRef]);
 }
 

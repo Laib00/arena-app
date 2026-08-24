@@ -32,7 +32,8 @@
   color: var(--ink);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  /* clip avoids Chrome breaking IntersectionObserver (lp-reveal stayed opacity:0) */
+  overflow-x: clip;
 }
 
 .lp *,
@@ -206,10 +207,12 @@
 }
 
 /* --- scroll reveal ------------------------------------------------------ */
+/* Visible by default. `.is-in` kept for optional transition polish.
+   (IO-based reveal left the live site at opacity: 0 in Chrome.) */
 
 .lp-reveal {
-  opacity: 0;
-  transform: translateY(22px);
+  opacity: 1;
+  transform: none;
   transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
