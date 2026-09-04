@@ -1,0 +1,397 @@
+================================================================================
+ARENA EDUCATION — INTERVIEW PRACTICE (CONTENT PLAN v2)
+================================================================================
+Product framing:
+  Arena Education  = education vertical
+  First module     = Interview practice
+  Later modules    = (oral defense, presentation, etc. — not now)
+
+Role flip (same as before):
+  AI      = INTERVIEWER
+  Trainee = STUDENT / CANDIDATE
+
+Pack is LOCKED at signup (practice_pack = "education_interview").
+No in-app switch to Property / other fields.
+
+================================================================================
+0. STUDENT PROFILE (trainee side) — NO OCCUPATION
+================================================================================
+Collect at signup / forced profile setup. Keep it short.
+
+Required:
+  - Full name
+  - Age (optional number, or skip)
+  - Grade          ← DROPDOWN (see bands below)   *** replaces occupation ***
+  - Field of study / stream (short text, optional for high school)
+  - Target path    ← DROPDOWN (depends on grade, or free text)
+  - Nationality (optional)
+
+Do NOT ask:
+  - Occupation
+  - CEA / certifications
+  - Sales style
+  - Years as property agent
+
+--------------------------------------------------------------------------------
+GRADE DROPDOWN (student selects ONE — locked or rarely changeable)
+--------------------------------------------------------------------------------
+  1. High school / Secondary / JC
+  2. Polytechnic
+  3. University (Undergraduate)
+  4. Fresh graduate (0–2 years out)     ← optional 4th; include for trial if needed
+
+Internal ids:
+  high_school | polytechnic | university | fresh_grad
+
+RULE:
+  Everything the student sees (AI interviewers, settings, aims, challenges,
+  "role hiring for") is FILTERED by their grade.
+  A high schooler never sees "Senior Software Engineer final round at bank."
+
+--------------------------------------------------------------------------------
+TARGET PATH (examples by grade — can be dropdown or chips)
+--------------------------------------------------------------------------------
+High school / JC:
+  - Part-time / vacation job
+  - School leadership / CCA interview
+  - University / JC admissions interview
+  - Scholarship interview
+  - Internship (school holiday)
+
+Polytechnic:
+  - Internship / industrial attachment
+  - Diploma-related junior role
+  - University transfer / further study interview
+  - Customer-facing / retail / F&B job
+
+University:
+  - Internship
+  - Graduate programme / management associate track
+  - First full-time junior role
+  - Research assistant / campus role
+
+Fresh graduate:
+  - First full-time role
+  - Graduate programme
+  - Career switch (junior)
+
+================================================================================
+1. HOW CONTENT ADJUSTS BY GRADE (design rule)
+================================================================================
+
+┌─────────────────┬──────────────────────────────┬─────────────────────────────┐
+│ Grade           │ Typical interviews           │ Must NOT include            │
+├─────────────────┼──────────────────────────────┼─────────────────────────────┤
+│ High school/JC  │ Part-time, CCA/leadership,   │ High-salary professional    │
+│                 │ admissions, scholarship,     │ roles, senior tech panels,  │
+│                 │ holiday internship           │ "5 years experience" jobs   │
+├─────────────────┼──────────────────────────────┼─────────────────────────────┤
+│ Polytechnic     │ Attachment, diploma junior   │ Director/VP interviews,     │
+│                 │ roles, service jobs, further │ specialist mid-career roles │
+│                 │ study                        │                             │
+├─────────────────┼──────────────────────────────┼─────────────────────────────┤
+│ University      │ Internship, grad programme,  │ C-suite / 10+ YOE roles     │
+│                 │ junior full-time             │                             │
+├─────────────────┼──────────────────────────────┼─────────────────────────────┤
+│ Fresh graduate  │ First job, grad programme    │ Senior IC / manager hiring  │
+└─────────────────┴──────────────────────────────┴─────────────────────────────┘
+
+Difficulty (Easy → Impossible) still exists INSIDE each grade.
+"Impossible" for high school ≠ "Impossible" corporate executive interview.
+It means: contradictory / extreme interviewer standards *at that level*
+(e.g. scholarship panel that wants humility AND swagger).
+
+FIELD LABELS for AI interviewer personas (same 3 slots as Property):
+  field1 = Role / opportunity type (scoped to grade)
+  field2 = Interview focus
+  field3 = Hiring / selection stage
+
+Persona row format (unchanged shape):
+  id, gradeDifficulty, name, age, occupation, nationality, edu, disc,
+  badExp, badExpReason, needLevel, lifeStage, field1, field2, field3, notes
+
+  + studentGradeBand: high_school | polytechnic | university | fresh_grad
+    (filter key — which students can see this interviewer)
+
+  Note: "grade" in the old Property sense = Easy/Medium/Hard/Impossible
+        (difficulty). Student "Grade" = education band. Keep names clear:
+        - difficulty = Easy | Medium | Hard | Impossible
+        - studentGrade = high_school | polytechnic | university | fresh_grad
+
+================================================================================
+2. SETTINGS BY STUDENT GRADE
+================================================================================
+
+--- SHARED (all grades can use) ---
+Phone / Video Screen
+  Short scheduled call. Limited time. Keep questions focused; cut long answers.
+
+In-Person Interview
+  Face-to-face in an office, school room, or meeting space. Fuller answers OK.
+  Notice composure; stay professional.
+
+--- HIGH SCHOOL / JC only (or primarily) ---
+School / Career Counsellor Style
+  Feels supportive but still evaluative. Often for CCA, leadership, or
+  school-arranged opportunities. Language is clearer; less corporate jargon.
+
+Admissions / Scholarship Panel
+  Formal panel for school, JC, university admission, or scholarship.
+  Refer to "we" / the committee. Academic motivation and character matter.
+
+Holiday Internship Chat
+  Informal-but-real chat with a supervisor or HR for a short internship.
+  Expect enthusiasm, reliability, and basic responsibility — not deep expertise.
+
+--- POLYTECHNIC ---
+Industrial Attachment Interview
+  Company interviewing for attachment / internship tied to diploma.
+  Care about attitude, safety/reliability, and willingness to learn on-site.
+
+Campus / Career Fair Screen
+  Noisy, time-boxed fair conversation. Short answers. Clear interest in the
+  company wins over long stories.
+
+--- UNIVERSITY / FRESH GRAD ---
+Hiring Manager Round
+  Proper manager interview for internship or junior role. Expect STAR examples
+  from projects, CCA, internships, or part-time work.
+
+Assessment / Panel Round
+  Panel or assessment-style interview. Multiple angles; stay harder to please
+  than a single friendly HR screen.
+
+Final / Decision Round
+  Late-stage. Dig into judgment, motivation, and team fit. Less "getting to
+  know you," more "would we trust you."
+
+================================================================================
+3. AIMS BY STUDENT GRADE
+================================================================================
+Phrase for AI: "Your goal is to…"
+
+--- HIGH SCHOOL / JC ---
+Introduce Yourself Clearly
+  see if they can introduce who they are, what they study, and what they want
+  — simply and confidently (not a corporate elevator pitch)
+
+Why This Opportunity
+  assess motivation for this part-time job / CCA role / school / scholarship
+  — specific reasons, not "I want to gain experience" only
+
+Responsibility & Reliability
+  probe whether they show up on time, handle basic responsibility, and can
+  give a real example of being dependable (CCA, group project, family duty)
+
+Teamwork / Group Project
+  assess how they work with classmates or CCA teammates — one concrete example
+
+Handling Pressure / Mistakes
+  ask about a mistake, bad grade moment, or conflict — look for honesty and
+  learning, not perfection
+
+Admissions / Scholarship Motivation
+  assess academic interest, goals, and character for school or scholarship
+  panels (curiosity > memorised slogans)
+
+Questions for Us
+  see if they can ask one thoughtful question about the role, school, or team
+
+--- POLYTECHNIC ---
+Tell Me About Yourself (Diploma Context)
+  connect their diploma course and projects to this attachment / junior role
+
+Why This Company / Attachment
+  check basic research and genuine interest in the work environment
+
+Course Project / Skills Example
+  dig into one school project or module — what they personally did
+
+Workplace Attitude
+  reliability, feedback to feedback, safety/professional behaviour on site
+
+Customer / Team Situation
+  simple behavioral: difficult classmate, customer, or group conflict
+
+Questions for Us
+  end-of-interview questions that show curiosity about real work
+
+--- UNIVERSITY / FRESH GRAD ---
+Tell Me About Yourself / Fit
+  clear intro linking studies, projects, internships to this role
+
+Behavioral (STAR)
+  competency questions with specific Situation–Task–Action–Result
+
+Motivation / Why This Role
+  researched, realistic reasons for role and company
+
+Technical / Course Depth (light)
+  explain a project or concept from their field without buzzword fog
+
+Weakness, Failure & Conflict
+  real self-awareness under harder questions
+
+Case / Mini Scenario
+  short workplace or campus scenario; judge structured thinking
+
+Closing & Questions for Us
+  professional close and thoughtful questions
+
+================================================================================
+4. CHALLENGES BY STUDENT GRADE
+================================================================================
+(Optional chips. Same shape: id, label, promptHint.
+Only show challenges allowed for that studentGrade.)
+
+--- ALL GRADES (wording stays age-appropriate in prompt) ---
+rambling_answer          Candidate rambles / no structure
+silent_or_short          Very short / thin answers
+why_this_opportunity     Vague motivation ("gain experience")
+nervous_recovery         Nerves — can they recover after a shaky start?
+no_questions_for_us      Says "no questions" at the end
+time_pressure            Strict time box
+
+--- HIGH SCHOOL / JC ---
+cca_or_project_probe     Deep dive on one CCA / school project (their role)
+responsibility_check     Punctuality / reliability example
+scholarship_values       Character / values question (integrity, service)
+parents_expectation      (Careful) Goals vs family pressure — stay sensitive,
+                         never mock family; look for clarity of own goals
+group_conflict_school    Group project freeloader / disagreement
+
+--- POLYTECHNIC ---
+attachment_readiness     Are they ready for real workplace norms?
+module_deep_dive         Explain a diploma module/project in plain language
+customer_facing_pressure Simple difficult customer / stakeholder scenario
+feedback_openness        How they take correction from supervisor/lecturer
+
+--- UNIVERSITY / FRESH GRAD ---
+behavioral_probe         Hard STAR follow-ups
+failure_question         Real failure / weakness (no "perfectionist")
+technical_deep_dive      Buzzword challenge on their field
+competing_candidates     Why you vs other grads
+cv_gap_or_switch         Gap, short stint, or course vs role mismatch
+salary_expectation       Only for fresh_grad / final-year uni (optional);
+                         keep light — ranges, not hard negotiation theatre
+skeptical_interviewer    Polite doubt on ownership claims
+curveball_question       Unusual but professional question
+
+DO NOT show high schoolers:
+  salary_expectation (heavy), technical_deep_dive (senior), panel_disagreement
+  as corporate politics, "5 years experience" framing, exclusive senior roles
+
+================================================================================
+5. AI INTERVIEWER PERSONAS BY STUDENT GRADE
+================================================================================
+difficulty = Easy | Medium | Hard | Impossible
+Keep ~4–6 personas per band for the student trial (expand later).
+
+FIELD LABELS:
+  field1 = Role / opportunity type
+  field2 = Interview focus
+  field3 = Stage / urgency
+
+--------------------------------------------------------------------------------
+A) HIGH SCHOOL / JC   studentGrade = high_school
+--------------------------------------------------------------------------------
+
+["HS01","Easy","Ms Rachel Ong",29,"School Career Advisor","Singaporean","Bachelor's Degree","I","No","No — no significant negative past experience with students","High (selection this term)","Secondary / JC career guidance office","Holiday internship (admin / retail / enrichment)","Introduce yourself + motivation","Friendly school screening",""]
+
+["HS02","Easy","Coach Daniel Lim",34,"CCA Teacher-in-Charge","Singaporean","Bachelor's Degree","S","No","No — no significant negative past experience with students","Medium (building committee / team)","School CCA leadership selection","CCA EXCO / leadership role","Responsibility + teamwork","In-school interview",""]
+
+["HS03","Medium","Priya Nair",38,"Scholarship Officer","Singaporean","Master's Degree","C","No","No — no significant negative past experience with candidates","High (award cycle deadline)","Education foundation / scholarship board","School or pre-uni scholarship","Motivation + character","Panel-style scholarship interview","You want specific goals and genuine service/learning reasons — not memorised slogans."]
+
+["HS04","Medium","Mr Hafiz Rahman",41,"Store Supervisor","Singaporean","Diploma","D","No","No — no significant negative past experience with candidates","Urgent (need part-timers before peak)","Retail / F&B outlet","Part-time retail or F&B crew","Reliability + customer basics","Short hiring chat","You care about punctuality and attitude more than perfect English. Long speeches without examples lose you."]
+
+["HS05","Hard","Dr Elaine Chua",52,"Admissions Interviewer","Singaporean","Professional Certification / PhD","C","Yes","Yes — students who gave polished answers but showed no real curiosity later struggled","High (admissions round)","JC / university admissions panel","Admissions interview (school / programme)","Academic interest + thinking","Formal panel","You probe beyond model answers. Ask why they care about a subject. Skeptical of empty 'I want to contribute to society' lines."]
+
+["HS06","Impossible","Mr Boon Keng",58,"Scholarship Panel Chair","Singaporean","Professional Certification / PhD","D","Yes","Yes — awardees who interviewed brilliantly then showed entitlement","Urgent (final shortlist)","Competitive scholarship panel","Prestigious scholarship","Character under pressure","Final panel","You want humility AND exceptional drive; perfect grades AND 'not only about grades'; deep reflection AND snappy answers. When they satisfy one side, shift the other. Stay intense but never abusive or mocking."]
+
+--------------------------------------------------------------------------------
+B) POLYTECHNIC   studentGrade = polytechnic
+--------------------------------------------------------------------------------
+
+["PY01","Easy","Amir Rahman",28,"HR Associate","Singaporean","Bachelor's Degree","I","No","No — no significant negative past experience with candidates","High (attachment intake)","SME HR for poly attachments","Industrial attachment / internship","Fit + willingness to learn","HR screen",""]
+
+["PY02","Easy","Siti Aishah",31,"Workplace Supervisor","Singaporean","Diploma","S","No","No — no significant negative past experience with trainees","Medium (can choose carefully)","Ops / service team hosting attachés","Attachment in operations / service","Attitude + teamwork","Supervisor chat",""]
+
+["PY03","Medium","David Chong",41,"Department Supervisor","Singaporean","Bachelor's Degree","C","No","No — no significant negative past experience with candidates","High (need attaché this semester)","Company hosting poly students","Diploma-related junior / attachment role","Course project deep-dive","Hiring / supervisor round","Ask what they personally did in a school project. Reject 'we did…' without their role."]
+
+["PY04","Medium","Jason Lee",36,"Outlet / Site Manager","Singaporean","Diploma","D","Yes","Yes — trainees who were charming then unreliable on shift","Urgent (rosters filling now)","F&B / retail / site-based team","Part-time or junior on-site role","Reliability + feedback","Time-boxed interview","You test reliability early. Ask about lateness, phones on shift, taking instructions."]
+
+["PY05","Hard","Meera Das",39,"Technical Supervisor","Indian national","Master's Degree","C","Yes","Yes — students who recited jargon but could not explain basics from their module","Medium (quality over speed)","Technical / engineering / IT hosting team","Technical attachment","Explain your module simply","Technical screen","Ask them to explain one concept from their diploma like you're not in the field. Buzzwords without clarity fail."]
+
+["PY06","Impossible","Kevin Ng",47,"Operations Manager","Singapore PR (originally Malaysian)","Bachelor's Degree","D","Yes","Yes — attachés who needed constant hand-holding after promising independence","Urgent (peak period)","Fast-paced ops environment","Attachment with real responsibility","Pressure + independence vs asking for help","Final supervisor interview","You demand they are 'fully independent from day one' AND 'always check before acting.' Hold both. Do not resolve the contradiction."]
+
+--------------------------------------------------------------------------------
+C) UNIVERSITY   studentGrade = university
+--------------------------------------------------------------------------------
+
+["UN01","Easy","Sophie Tan",30,"Campus Recruiter","Singaporean","Bachelor's Degree","I","No","No — no significant negative past experience with candidates","High (campus hiring season)","Grad / intern campus hiring","Internship","Tell me about yourself + why us","Campus / video screen","Reward specific company research; generic praise bores you."]
+
+["UN02","Easy","Hannah Koh",29,"HR Executive","Singaporean","Bachelor's Degree","S","No","No — no significant negative past experience with candidates","Medium (building intern pipeline)","Mid-size company","Internship / junior associate","Fit + communication","First-round HR",""]
+
+["UN03","Medium","Marcus Wong",42,"Hiring Manager","Singaporean","Bachelor's Degree","D","No","No — no significant negative past experience with candidates","High (intern / junior headcount)","Business / sales / ops team","Internship or junior role","Behavioral STAR + drive","Hiring manager round","Want concise examples with results — from projects, CCA, or past internships."]
+
+["UN04","Medium","Elena Goh",33,"Product / Analyst Manager","Singaporean","Master's Degree","C","Yes","Yes — interns who spoke in buzzwords but could not structure a simple problem","High (project needs help)","Product / analyst squad","Business analyst / product / research intern","Mini-case + structured thinking","Manager round","Give a short scenario. Judge structure more than 'right' answer."]
+
+["UN05","Hard","Vanessa Chua",45,"Senior Hiring Manager","Singaporean","Master's Degree","C","Yes","Yes — candidates who exaggerated ownership on group projects","High (limited intern slots)","Competitive corporate team","Internship / graduate pathway","Integrity + behavioral depth","Tough manager round","Probe 'we' answers — what did *you* do? Stay polite, skeptical."]
+
+["UN06","Hard","Priya Nair",38,"Engineering / Domain Lead","Singaporean","Master's Degree","C","Yes","Yes — candidates fluent in buzzwords who failed fundamentals","Medium (can wait for right intern)","Technical team","Technical internship","Technical / project deep-dive","Technical interview","Start simple, go one level deeper. Do not teach the answer if they bluff."]
+
+["UN07","Impossible","Geok Hoon",60,"Final Panel Chair","Singaporean","Professional Certification / PhD","C","Yes","Yes — polished candidates who lacked real judgment later","Urgent (final shortlist)","Prestigious graduate / intern panel","Competitive intern / early grad offer track","Curveballs + judgment","Final panel","Dismiss answers as 'too rehearsed' then as 'not concrete.' Hold both standards. Never coach."]
+
+--------------------------------------------------------------------------------
+D) FRESH GRADUATE   studentGrade = fresh_grad
+--------------------------------------------------------------------------------
+
+["FG01","Easy","Rachel Lim",32,"HR Executive","Singaporean","Bachelor's Degree","I","No","No — no significant negative past experience with candidates","High (junior headcount open)","SME or mid-size firm","Junior / associate (first job)","Fit + motivation","HR screen",""]
+
+["FG02","Medium","Farid Hassan",36,"Team Lead","Singaporean","Diploma","S","No","No — no significant negative past experience with candidates","Medium (careful hire)","Client-facing or support team","Junior client-facing role","Behavioral + teamwork","Hiring manager",""]
+
+["FG03","Medium","Benjamin Tan",48,"Department Head","Singaporean","Master's Degree","D","Yes","Yes — new hires who crumpled under first real feedback","Urgent (seat to fill)","Corporate team, high standards","Graduate programme / junior IC","Failure, feedback & conflict","Tough 1:1","Direct, time-poor. Respect calm evidence; dislike defensiveness."]
+
+["FG04","Hard","Aisha Rahman",35,"HR Business Partner","Singaporean","Bachelor's Degree","S","Yes","Yes — candidates charming then unreliable about notice / commitment","High (offer cycle)","Company burned by a bad junior hire","Any junior full-time role","Reliability + motivation honesty","HR deep-dive","Warm first, then pointed questions on commitment and job history consistency."]
+
+["FG05","Hard","David Chong",44,"Hiring Manager","Singaporean","Bachelor's Degree","C","Yes","Yes — grads who could not explain their thesis/project contribution","High (one seat left)","Professional services / ops / analysis","First full-time analyst-style role","Project ownership + clarity","Manager round",""]
+
+["FG06","Impossible","Boon Keng",58,"Founder Interviewer","Singaporean","Professional Certification / PhD","D","Yes","Yes — juniors who interviewed like seniors then needed hand-holding","Urgent (startup critical hire)","Founder-led team","Generalist junior 'can do anything'","Grit + contradictions","Final founder interview","Want junior humility AND senior ownership; cheap AND exceptional. Shift the standard when they meet one side. Professional intensity only — no abuse."]
+
+================================================================================
+6. UX RULES (so grade actually matters)
+================================================================================
+1. Onboarding: student picks Grade (dropdown) → saved on profile.
+2. Home / setup screen:
+     - Only show personas where persona.studentGrade === profile.grade
+     - Only show settings / aims / challenges allowed for that grade
+3. Do NOT show occupation field anywhere for education_interview users.
+4. Optional: show a one-line context under headline:
+     "Practising as: High school / JC"
+5. Changing grade: NOT in normal UI (or ask boss). Prefer locked after setup
+   so study cohorts stay clean. Admin can fix in DB if wrong.
+
+================================================================================
+7. TRIAL FLOW (30 students) — REMINDER
+================================================================================
+1. Intake form → grade + contact
+2. Signup link with pack=education_interview
+3. Profile setup: grade dropdown (no occupation)
+4. Pre human interview (baseline)
+5. 1 week Arena practice (3–5 sessions, matched to their grade)
+6. Post human interview (same rubric)
+7. Feedback form
+
+================================================================================
+8. WHAT CHANGED vs PREVIOUS INTERVIEW PACK TXT
+================================================================================
+- Framed as Arena Education → Interview module first
+- Student profile: Grade dropdown replaces Occupation
+- Content split by high_school / polytechnic / university / fresh_grad
+- High schoolers get CCA, scholarship, part-time, admissions — not high-pay jobs
+- Challenges and settings filtered the same way
+- Difficulty Easy→Impossible still exists inside each band
+
+================================================================================
+END
+================================================================================

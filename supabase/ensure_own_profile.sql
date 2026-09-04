@@ -11,6 +11,7 @@ declare
   uid uuid := auth.uid();
   meta jsonb;
   row public.profiles;
+  pack text;
 begin
   if uid is null then
     raise exception 'Not authenticated';
@@ -18,12 +19,19 @@ begin
 
   select raw_user_meta_data into meta from auth.users where id = uid;
 
-  insert into public.profiles (id, email, full_name, industry, agent_profile)
+  pack := case
+    when coalesce(meta->>'practice_pack', 'property') = 'education' then 'education'
+    when meta->'agent_profile'->>'studentGrade' is not null then 'education'
+    else 'property'
+  end;
+
+  insert into public.profiles (id, email, full_name, industry, practice_pack, agent_profile)
   values (
     uid,
     (select email from auth.users where id = uid),
     coalesce(meta->>'full_name', meta->>'name', (select email from auth.users where id = uid)),
     coalesce(meta->>'industry', 'Property'),
+    pack,
     meta->'agent_profile'
   )
   on conflict (id) do update

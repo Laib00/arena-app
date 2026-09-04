@@ -18,7 +18,7 @@ async function saveProfileFields(
     .from("profiles")
     .update(fields)
     .eq("id", userId)
-    .select("id, agent_profile, industry, full_name, xp");
+    .select("id, agent_profile, industry, practice_pack, full_name, xp");
   if (error) throw error;
   if (!data?.length) {
     throw new Error(

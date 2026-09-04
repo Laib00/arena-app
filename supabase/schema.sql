@@ -14,10 +14,12 @@ create table if not exists public.profiles (
   full_name text,
   role text not null default 'trainee' check (role in ('trainee', 'manager')),
   industry text not null default 'Property' check (industry in ('Property', 'Financial Planning')),
+  practice_pack text not null default 'property' check (practice_pack in ('property', 'education')),
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists industry text not null default 'Property';
+alter table public.profiles add column if not exists practice_pack text not null default 'property';
 alter table public.profiles add column if not exists agent_profile jsonb;
 alter table public.profiles add column if not exists xp integer not null default 0;
 
@@ -69,12 +71,17 @@ create trigger protect_role_column
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, full_name, industry, agent_profile)
+  insert into public.profiles (id, email, full_name, industry, practice_pack, agent_profile)
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
     coalesce(new.raw_user_meta_data->>'industry', 'Property'),
+    case
+      when coalesce(new.raw_user_meta_data->>'practice_pack', 'property') = 'education'
+        then 'education'
+      else 'property'
+    end,
     new.raw_user_meta_data->'agent_profile'
   );
   return new;

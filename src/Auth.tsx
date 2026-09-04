@@ -1,24 +1,55 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
+import {
+  STUDENT_GRADE_OPTIONS,
+  TARGET_PATHS,
+  isStudentGrade,
+} from "./data/educationInterview";
+import { ENABLE_EDUCATION_PACK, PRACTICE_PACK_STORAGE_KEY } from "./data/practicePack";
 import { NAVY, ACCENT as GOLD, CREAM } from "./theme";
-import type { DiscType } from "./types/domain";
+import type { DiscType, PracticePack, StudentGrade } from "./types/domain";
+
+/** Trial / invite links: ?signup=1&email=...&name=...&pack=sales|property|education */
+function packFromInviteParam(raw: string | null): PracticePack | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  if (v === "sales" || v === "property") return "property";
+  if (ENABLE_EDUCATION_PACK && (v === "education" || v === "interview")) return "education";
+  // pack=education while Education is gated → still Property (trial invite stays valid)
+  if (v === "education" || v === "interview") return "property";
+  return null;
+}
+
+function inviteFromSearchParams(params: URLSearchParams) {
+  const email = (params.get("email") || "").trim();
+  const name = (params.get("name") || params.get("full_name") || "").trim();
+  const pack = packFromInviteParam(params.get("pack"));
+  const openSignup =
+    params.get("signup") === "1" ||
+    params.get("mode") === "signup" ||
+    Boolean(email || name || pack);
+  return { email, name, pack, openSignup };
+}
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState(
-    searchParams.get("signup") === "1" || searchParams.get("mode") === "signup"
-      ? "signup"
-      : "login"
-  ); // login | signup
-  // signup only: choose method → email credentials → agent profile
-  const [signupStep, setSignupStep] = useState("choose"); // choose | email | profile
-  const [email, setEmail] = useState("");
+  const invite = inviteFromSearchParams(searchParams);
+  // While Education is gated, skip the pack picker — everyone is Property.
+  const skipPackStep = !ENABLE_EDUCATION_PACK || Boolean(invite.pack);
+  const initialPack: PracticePack =
+    ENABLE_EDUCATION_PACK && invite.pack === "education" ? "education" : "property";
+
+  const [mode, setMode] = useState(invite.openSignup ? "signup" : "login");
+  // signup: choose pack → choose method → email → profile
+  // Invite with pack (or Education gated) skips pack picker; email/name are prefilled.
+  const [signupStep, setSignupStep] = useState(skipPackStep ? "choose" : "pack"); // pack | choose | email | profile
+  const [practicePack, setPracticePack] = useState<PracticePack>(initialPack);
+  const [email, setEmail] = useState(invite.email);
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [industry] = useState("Property");
+  const [fullName, setFullName] = useState(invite.name);
   const [age, setAge] = useState("");
   const [nationality, setNationality] = useState("Singaporean");
   const [experience, setExperience] = useState("");
@@ -26,20 +57,49 @@ export default function Auth() {
   const [disc, setDisc] = useState("I");
   const [salesStyle, setSalesStyle] = useState<string>(SALES_STYLES[0]);
   const [certification, setCertification] = useState<string>(CERTIFICATIONS[0]);
+  const [studentGrade, setStudentGrade] = useState<StudentGrade>("university");
+  const [fieldOfStudy, setFieldOfStudy] = useState("");
+  const [targetPath, setTargetPath] = useState(TARGET_PATHS.university[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const inviteLockedPack = Boolean(invite.pack) || !ENABLE_EDUCATION_PACK;
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(PRACTICE_PACK_STORAGE_KEY, initialPack);
+    } catch {
+      /* ignore */
+    }
+  }, [initialPack]);
+
+  useEffect(() => {
+    if (!ENABLE_EDUCATION_PACK && signupStep === "pack") {
+      setSignupStep("choose");
+      setPracticePack("property");
+    }
+  }, [signupStep]);
+
+  function rememberPack(pack: PracticePack) {
+    const next = !ENABLE_EDUCATION_PACK || pack !== "education" ? "property" : pack;
+    setPracticePack(next);
+    try {
+      sessionStorage.setItem(PRACTICE_PACK_STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
 
   function goLogin() {
     setMode("login");
-    setSignupStep("choose");
+    setSignupStep(skipPackStep ? "choose" : "pack");
     setError(null);
     setMessage(null);
   }
 
   function goSignup() {
     setMode("signup");
-    setSignupStep("choose");
+    setSignupStep(skipPackStep ? "choose" : "pack");
     setError(null);
     setMessage(null);
   }
@@ -73,23 +133,49 @@ export default function Auth() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (practicePack === "education" && !isStudentGrade(studentGrade)) {
+      setError("Please select your grade.");
+      return;
+    }
     setLoading(true);
     try {
-      const agentProfile = {
-        name: fullName || email,
-        age,
-        occupation: industry === "Property" ? "Property Agent" : "Financial Advisor",
-        nationality,
-        experience,
-        education,
-        disc,
-        salesStyle,
-        certification,
-      };
+      const agentProfile =
+        practicePack === "education"
+          ? {
+              name: fullName || email,
+              age,
+              nationality,
+              disc,
+              studentGrade,
+              fieldOfStudy,
+              targetPath,
+              occupation: undefined,
+              salesStyle: undefined,
+              certification: undefined,
+              experience: undefined,
+            }
+          : {
+              name: fullName || email,
+              age,
+              occupation: "Property Agent",
+              nationality,
+              experience,
+              education,
+              disc,
+              salesStyle,
+              certification,
+            };
       const { error: err } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName || email, industry, agent_profile: agentProfile } },
+        options: {
+          data: {
+            full_name: fullName || email,
+            industry: "Property",
+            practice_pack: practicePack,
+            agent_profile: agentProfile,
+          },
+        },
       });
       if (err) throw err;
       setMessage("If this is a new account, check your email to confirm it, then log in. If you already have an account with this email (including via Google), just log in directly instead.");
@@ -104,10 +190,17 @@ export default function Auth() {
   async function handleGoogleAuth() {
     setError(null);
     setLoading(true);
+    // Only lock pack on signup Google; login must keep the existing profile pack.
+    if (mode === "signup") rememberPack(practicePack);
     try {
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/dashboard` },
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+          ...(mode === "signup"
+            ? { data: { practice_pack: practicePack } }
+            : {}),
+        },
       });
       if (err) throw err;
     } catch (err: unknown) {
@@ -120,11 +213,17 @@ export default function Auth() {
   const subtitle =
     mode === "login"
       ? "Log in to continue"
-      : signupStep === "choose"
-        ? "How do you want to sign up?"
-        : signupStep === "email"
-          ? "Sign up with email"
-          : "Your agent profile";
+      : signupStep === "pack"
+        ? "What will you practise?"
+        : signupStep === "choose"
+          ? "How do you want to sign up?"
+          : signupStep === "email"
+            ? "Sign up with email"
+            : practicePack === "education"
+              ? "Your student profile"
+              : "Your agent profile";
+
+  const targetOptions = TARGET_PATHS[studentGrade] || TARGET_PATHS.university;
 
   return (
     <div
@@ -149,12 +248,7 @@ export default function Auth() {
 
         {mode === "login" && (
           <>
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              disabled={loading}
-              style={secondaryBtnStyle}
-            >
+            <button type="button" onClick={handleGoogleAuth} disabled={loading} style={secondaryBtnStyle}>
               Continue with Google
             </button>
             <OrDivider />
@@ -170,14 +264,66 @@ export default function Auth() {
           </>
         )}
 
-        {mode === "signup" && signupStep === "choose" && (
+        {mode === "signup" && signupStep === "pack" && ENABLE_EDUCATION_PACK && (
           <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 8 }}>
+              {([
+                { id: "property" as const, title: "Property", desc: "Practise client conversations as a property agent." },
+                { id: "education" as const, title: "Education", desc: "Practise interviews as a student or early-career candidate." },
+              ]).map((opt) => {
+                const selected = practicePack === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => rememberPack(opt.id)}
+                    style={{
+                      textAlign: "left",
+                      padding: "14px 16px",
+                      borderRadius: 10,
+                      border: selected ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: selected ? NAVY : "#fff",
+                      color: selected ? "#fff" : NAVY,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{opt.title}</div>
+                    <div style={{ fontSize: 12, opacity: selected ? 0.85 : 0.7, lineHeight: 1.4 }}>{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
-              onClick={handleGoogleAuth}
-              disabled={loading}
-              style={secondaryBtnStyle}
+              onClick={() => { setError(null); setSignupStep("choose"); }}
+              style={{ ...primaryBtnStyle(false), marginTop: 12 }}
             >
+              Continue
+            </button>
+            {error && <div style={{ marginTop: 12 }}><ErrorBox>{error}</ErrorBox></div>}
+          </>
+        )}
+
+        {mode === "signup" && signupStep === "choose" && (
+          <>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, textAlign: "center" }}>
+              Field: <strong style={{ color: NAVY }}>{practicePack === "education" ? "Education" : "Property"}</strong>
+              {!inviteLockedPack && (
+                <>
+                  {" · "}
+                  <button type="button" onClick={() => setSignupStep("pack")} style={linkStyle}>Change</button>
+                </>
+              )}
+            </div>
+            {(invite.email || invite.name) && (
+              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, textAlign: "center", lineHeight: 1.4 }}>
+                {invite.name && <>Welcome, <strong style={{ color: NAVY }}>{invite.name}</strong></>}
+                {invite.name && invite.email && <br />}
+                {invite.email && <>Account email: <strong style={{ color: NAVY }}>{invite.email}</strong></>}
+              </div>
+            )}
+            <button type="button" onClick={handleGoogleAuth} disabled={loading} style={secondaryBtnStyle}>
               Continue with Google
             </button>
             <OrDivider />
@@ -199,11 +345,7 @@ export default function Auth() {
             <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} style={inputStyle} />
             {error && <ErrorBox>{error}</ErrorBox>}
             <button type="submit" style={primaryBtnStyle(false)}>Continue</button>
-            <button
-              type="button"
-              onClick={() => { setError(null); setSignupStep("choose"); }}
-              style={linkStyle}
-            >
+            <button type="button" onClick={() => { setError(null); setSignupStep("choose"); }} style={linkStyle}>
               Back
             </button>
           </form>
@@ -219,68 +361,125 @@ export default function Auth() {
               style={inputStyle}
             />
             <div>
-              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Industry</div>
+              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Field</div>
               <div style={{
                 padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                 border: `2px solid ${NAVY}`, background: NAVY, color: "#fff",
               }}>
-                Property
+                {practicePack === "education" ? "Education" : "Property"}
               </div>
             </div>
 
-            <div style={{ borderTop: "1px solid #E2DFD6", paddingTop: 12, marginTop: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 10 }}>YOUR AGENT PROFILE</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <SmallField label="Age">
-                  <input type="number" value={age} onChange={(e) => setAge(e.target.value)} style={inputStyle} />
-                </SmallField>
-                <SmallField label="Experience (months)">
-                  <input type="number" value={experience} onChange={(e) => setExperience(e.target.value)} style={inputStyle} />
-                </SmallField>
-                <SmallField label="Nationality" full>
-                  <input
-                    list="nationality-options"
-                    value={nationality}
-                    onChange={(e) => setNationality(e.target.value)}
-                    placeholder="Start typing..."
-                    style={inputStyle}
-                  />
-                  <datalist id="nationality-options">
-                    {NATIONALITIES.map((n) => <option key={n} value={n} />)}
-                  </datalist>
-                </SmallField>
-                <SmallField label="Educational Level" full>
-                  <select value={education} onChange={(e) => setEducation(e.target.value)} style={inputStyle}>
-                    {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </SmallField>
-                <SmallField label="Personality (DISC)">
-                  <select value={disc} onChange={(e) => setDisc(e.target.value)} style={inputStyle}>
-                    {(Object.keys(DISC) as DiscType[]).map((d) => <option key={d} value={d}>{d} — {DISC[d].name}</option>)}
-                  </select>
-                </SmallField>
-                <SmallField label="Sales Style">
-                  <select value={salesStyle} onChange={(e) => setSalesStyle(e.target.value)} style={inputStyle}>
-                    {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </SmallField>
-                <SmallField label="Professional Certification" full>
-                  <select value={certification} onChange={(e) => setCertification(e.target.value)} style={inputStyle}>
-                    {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </SmallField>
+            {practicePack === "education" ? (
+              <div style={{ borderTop: "1px solid #E2DFD6", paddingTop: 12, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 10 }}>YOUR STUDENT PROFILE</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <SmallField label="Age">
+                    <input type="number" value={age} onChange={(e) => setAge(e.target.value)} style={inputStyle} />
+                  </SmallField>
+                  <SmallField label="Nationality">
+                    <input
+                      list="nationality-options"
+                      value={nationality}
+                      onChange={(e) => setNationality(e.target.value)}
+                      placeholder="Start typing..."
+                      style={inputStyle}
+                    />
+                    <datalist id="nationality-options">
+                      {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+                    </datalist>
+                  </SmallField>
+                  <SmallField label="Grade" full>
+                    <select
+                      value={studentGrade}
+                      onChange={(e) => {
+                        const next = e.target.value as StudentGrade;
+                        setStudentGrade(next);
+                        setTargetPath(TARGET_PATHS[next][0]);
+                      }}
+                      required
+                      style={inputStyle}
+                    >
+                      {STUDENT_GRADE_OPTIONS.map((g) => (
+                        <option key={g.id} value={g.id}>{g.label}</option>
+                      ))}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Field of study / stream" full>
+                    <input
+                      value={fieldOfStudy}
+                      onChange={(e) => setFieldOfStudy(e.target.value)}
+                      placeholder="e.g. Business, Computing, Science"
+                      style={inputStyle}
+                    />
+                  </SmallField>
+                  <SmallField label="What are you practising for?" full>
+                    <select value={targetPath} onChange={(e) => setTargetPath(e.target.value)} style={inputStyle}>
+                      {targetOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Personality (DISC)" full>
+                    <select value={disc} onChange={(e) => setDisc(e.target.value)} style={inputStyle}>
+                      {(Object.keys(DISC) as DiscType[]).map((d) => (
+                        <option key={d} value={d}>{d} — {DISC[d].name}</option>
+                      ))}
+                    </select>
+                  </SmallField>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ borderTop: "1px solid #E2DFD6", paddingTop: 12, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 10 }}>YOUR AGENT PROFILE</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <SmallField label="Age">
+                    <input type="number" value={age} onChange={(e) => setAge(e.target.value)} style={inputStyle} />
+                  </SmallField>
+                  <SmallField label="Experience (months)">
+                    <input type="number" value={experience} onChange={(e) => setExperience(e.target.value)} style={inputStyle} />
+                  </SmallField>
+                  <SmallField label="Nationality" full>
+                    <input
+                      list="nationality-options"
+                      value={nationality}
+                      onChange={(e) => setNationality(e.target.value)}
+                      placeholder="Start typing..."
+                      style={inputStyle}
+                    />
+                    <datalist id="nationality-options">
+                      {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+                    </datalist>
+                  </SmallField>
+                  <SmallField label="Educational Level" full>
+                    <select value={education} onChange={(e) => setEducation(e.target.value)} style={inputStyle}>
+                      {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Personality (DISC)">
+                    <select value={disc} onChange={(e) => setDisc(e.target.value)} style={inputStyle}>
+                      {(Object.keys(DISC) as DiscType[]).map((d) => (
+                        <option key={d} value={d}>{d} — {DISC[d].name}</option>
+                      ))}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Sales Style">
+                    <select value={salesStyle} onChange={(e) => setSalesStyle(e.target.value)} style={inputStyle}>
+                      {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </SmallField>
+                  <SmallField label="Professional Certification" full>
+                    <select value={certification} onChange={(e) => setCertification(e.target.value)} style={inputStyle}>
+                      {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </SmallField>
+                </div>
+              </div>
+            )}
 
             {error && <ErrorBox>{error}</ErrorBox>}
             <button type="submit" disabled={loading} style={primaryBtnStyle(loading)}>
               {loading ? "Please wait..." : "Create account"}
             </button>
-            <button
-              type="button"
-              onClick={() => { setError(null); setSignupStep("email"); }}
-              style={linkStyle}
-            >
+            <button type="button" onClick={() => { setError(null); setSignupStep("email"); }} style={linkStyle}>
               Back
             </button>
           </form>

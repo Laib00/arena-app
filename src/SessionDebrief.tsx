@@ -61,6 +61,21 @@ export function buildClientFeedbackPrompt(
   aim: Aim,
   setting: Setting
 ): string {
+  if (client.industry === "Education") {
+    return `You are roleplaying as the interviewer "${client.name}" from an interview practice session — not as a coach or trainer.
+
+You are: ${client.name}, age ${client.age}, ${client.occupation}, DISC ${client.disc} (${DISC[client.disc].name}). Hiring urgency: ${client.needLevel}. Past experience: ${client.badExpReason}.
+${client.notes ? `Your built-in interviewer behaviour: ${client.notes}` : ""}
+Interview focus: ${aim.key}. Setting: ${setting.key}.
+The candidate was: ${himself.name} (grade band: ${himself.studentGrade || "student"}, target: ${himself.targetPath || "n/a"}).
+
+Speak entirely in first person as ${client.name}. Review the transcript and pick 3–5 specific moments that mattered to your impression of the candidate. For each moment:
+- Quote or paraphrase what the candidate said/did
+- Say how you felt / what you thought as the interviewer (e.g. unclear, impressive, vague, prepared, nervous)
+
+Do NOT coach the candidate. Do NOT say what they should do next. Do NOT use section labels like STRENGTHS or OVERALL. Plain conversational language only. Under 250 words.`;
+  }
+
   return `You are roleplaying as the client "${client.name}" from a sales practice session — not as a coach or trainer.
 
 You are: ${client.name}, age ${client.age}, ${client.occupation}, DISC ${client.disc} (${DISC[client.disc].name}). Need level: ${client.needLevel}. Past experience: ${client.badExpReason}.
@@ -81,9 +96,11 @@ export function buildFactsPrompt(
   aim: Aim,
   setting: Setting
 ): string {
-  return `You are a neutral session observer for sales practice. You report FACTS and measurements only — never coaching advice, never "you should", never judgment about whether something was good or bad.
+  const trainee = client.industry === "Education" ? "Candidate" : "Agent";
+  const other = client.industry === "Education" ? "Interviewer" : "Client";
+  return `You are a neutral session observer for practice. You report FACTS and measurements only — never coaching advice, never "you should", never judgment about whether something was good or bad.
 
-Trainee: ${himself.name}. Client persona: ${client.name} (grade ${client.grade}, DISC ${client.disc}). Aim: ${aim.key}. Setting: ${setting.key}.
+Trainee: ${himself.name}. ${other} persona: ${client.name} (grade ${client.grade}, DISC ${client.disc}). Aim: ${aim.key}. Setting: ${setting.key}.
 
 From the transcript, produce plain-text observations with approximate numbers where possible. Use these exact labels on their own lines:
 TALK RATIO
@@ -91,29 +108,45 @@ KEY BEHAVIOURS OBSERVED
 OTHER MEASUREMENTS
 
 Rules:
-- Facts and counts only (e.g. "Agent spoke in roughly 65% of turns", "Agent asked 4 questions", "Client interrupted twice").
+- Facts and counts only (e.g. "${trainee} spoke in roughly 65% of turns", "${trainee} asked 4 questions", "${other} interrupted twice").
 - No recommendations. No praise. No criticism framed as coaching.
 - Do not report tone, vocal energy, pitch, volume, speaking rate, or pace — those cannot be measured from a text transcript.
 - If something cannot be measured from the transcript, say "Not enough data".
 - Under 200 words. No markdown.`;
 }
 
-/** First reflection — before seeing client feedback (uncontaminated). */
+/** First reflection — before seeing counterparty feedback (uncontaminated). */
 export const REFLECTION_PROMPTS = [
-  "Overall, how do you think this conversation went for the client?",
+  "Overall, how do you think this conversation went for the other person?",
   "What was the hardest moment for you, and why?",
-  "What do you believe the client felt toward you in this meeting (trust, pressure, interest, confusion, etc.)?",
-  "What did you try to achieve in this conversation (e.g. rapport, discovery, next step)?",
-  "If you met this client again tomorrow, what would you do differently?",
+  "What do you believe they felt toward you in this meeting (trust, pressure, interest, confusion, etc.)?",
+  "What did you try to achieve in this conversation?",
+  "If you met them again tomorrow, what would you do differently?",
 ];
 
-/** After reading client feedback — second learning layer. */
+/** After reading counterparty feedback — second learning layer. */
 export const REFLECTION_UPDATE_PROMPTS = [
-  "Where did your first reflection match what the client said they felt?",
+  "Where did your first reflection match what they said they felt?",
   "Where were you wrong or surprised? What does that tell you?",
-  "Which client feeling do you think you caused most — and what did you say or do that led to it?",
+  "Which feeling do you think you caused most — and what did you say or do that led to it?",
   "Looking at your first reflection, what would you keep, and what would you change?",
-  "What is one specific behaviour you'll practice next time with a similar client?",
+  "What is one specific behaviour you'll practice next time in a similar situation?",
+];
+
+export const REFLECTION_PROMPTS_INTERVIEW = [
+  "Overall, how do you think this interview went from the interviewer's point of view?",
+  "What was the hardest question or moment for you, and why?",
+  "What do you believe the interviewer thought of you (prepared, unclear, confident, nervous, etc.)?",
+  "What were you trying to show or achieve in this interview?",
+  "If you had this interview again tomorrow, what would you do differently?",
+];
+
+export const REFLECTION_UPDATE_PROMPTS_INTERVIEW = [
+  "Where did your first reflection match what the interviewer said?",
+  "Where were you wrong or surprised? What does that tell you?",
+  "Which interviewer impression do you think you caused most — and what did you say that led to it?",
+  "Looking at your first reflection, what would you keep, and what would you change?",
+  "What is one specific behaviour you'll practice in your next interview?",
 ];
 
 const STEP_ORDER: DebriefStep[] = ["reflection", "feedback", "reflection_update", "facts", "suggestions"];
@@ -276,20 +309,34 @@ export default function SessionDebrief({
   callAI: (systemPrompt: string, messages: ChatMessage[]) => Promise<string>;
   onSaveDebrief: (payload: Record<string, unknown>) => Promise<void> | void;
 }) {
+  const isInterview = client.industry === "Education";
+  const reflectionPrompts = isInterview ? REFLECTION_PROMPTS_INTERVIEW : REFLECTION_PROMPTS;
+  const updatePrompts = isInterview ? REFLECTION_UPDATE_PROMPTS_INTERVIEW : REFLECTION_UPDATE_PROMPTS;
+  const feedbackTitle = isInterview ? "Interviewer reaction" : "Client feedback";
+  const otherLabel = isInterview ? "interviewer" : "client";
+
   const [step, setStep] = useState<DebriefStep>("reflection");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clientFeedback, setClientFeedback] = useState("");
-  const [reflectionAnswers, setReflectionAnswers] = useState(() => emptyAnswers(REFLECTION_PROMPTS));
-  const [updateAnswers, setUpdateAnswers] = useState(() => emptyAnswers(REFLECTION_UPDATE_PROMPTS));
+  const [reflectionAnswers, setReflectionAnswers] = useState(() => emptyAnswers(reflectionPrompts));
+  const [updateAnswers, setUpdateAnswers] = useState(() => emptyAnswers(updatePrompts));
   const [facts, setFacts] = useState("");
   const [suggestions, setSuggestions] = useState("");
   const [suggestionsSections, setSuggestionsSections] = useState<EvalSections | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    setReflectionAnswers(emptyAnswers(reflectionPrompts));
+    setUpdateAnswers(emptyAnswers(updatePrompts));
+  }, [open, isInterview]);
+
   function transcriptText() {
+    const traineeTag = isInterview ? "candidate" : "agent";
+    const otherTag = isInterview ? "interviewer" : "client";
     return displayMessages
-      .map((m) => `${m.role === "user" ? himself.name.toUpperCase() + " (agent)" : client.name.toUpperCase() + " (client)"}: ${m.content}`)
+      .map((m) => `${m.role === "user" ? himself.name.toUpperCase() + ` (${traineeTag})` : client.name.toUpperCase() + ` (${otherTag})`}: ${m.content}`)
       .join("\n\n");
   }
 
@@ -311,8 +358,8 @@ export default function SessionDebrief({
     setLoading(true);
     setError(null);
     try {
-      const reflectionJson = serializeReflectionAnswers(REFLECTION_PROMPTS, reflectionAnswers);
-      const updateJson = serializeReflectionAnswers(REFLECTION_UPDATE_PROMPTS, updateAnswers);
+      const reflectionJson = serializeReflectionAnswers(reflectionPrompts, reflectionAnswers);
+      const updateJson = serializeReflectionAnswers(updatePrompts, updateAnswers);
       const prompt = buildFactsPrompt(himself, client, aim, setting);
       const text = await callAI(prompt, [{
         role: "user",
@@ -330,8 +377,8 @@ export default function SessionDebrief({
     setLoading(true);
     setError(null);
     try {
-      const reflectionJson = serializeReflectionAnswers(REFLECTION_PROMPTS, reflectionAnswers);
-      const updateJson = serializeReflectionAnswers(REFLECTION_UPDATE_PROMPTS, updateAnswers);
+      const reflectionJson = serializeReflectionAnswers(reflectionPrompts, reflectionAnswers);
+      const updateJson = serializeReflectionAnswers(updatePrompts, updateAnswers);
       const prompt = buildEvalPrompt(himself, client, aim, setting);
       const text = await callAI(prompt, [{
         role: "user",
@@ -350,8 +397,8 @@ export default function SessionDebrief({
     if (!open) return;
     setStep("reflection");
     setClientFeedback("");
-    setReflectionAnswers(emptyAnswers(REFLECTION_PROMPTS));
-    setUpdateAnswers(emptyAnswers(REFLECTION_UPDATE_PROMPTS));
+    setReflectionAnswers(emptyAnswers(reflectionPrompts));
+    setUpdateAnswers(emptyAnswers(updatePrompts));
     setFacts("");
     setSuggestions("");
     setSuggestionsSections(null);
@@ -385,8 +432,8 @@ export default function SessionDebrief({
       if (onSaveDebrief) {
         await onSaveDebrief({
           clientFeedback,
-          reflection: serializeReflectionAnswers(REFLECTION_PROMPTS, reflectionAnswers),
-          reflectionUpdate: serializeReflectionAnswers(REFLECTION_UPDATE_PROMPTS, updateAnswers),
+          reflection: serializeReflectionAnswers(reflectionPrompts, reflectionAnswers),
+          reflectionUpdate: serializeReflectionAnswers(updatePrompts, updateAnswers),
           facts,
           suggestions: includeSuggestions ? suggestions : null,
           suggestionsSections: includeSuggestions ? suggestionsSections : null,
@@ -406,7 +453,7 @@ export default function SessionDebrief({
 
   const titles = {
     reflection: "Your reflection",
-    feedback: "Client feedback",
+    feedback: feedbackTitle,
     reflection_update: "Update your reflection",
     facts: "Session facts",
     suggestions: "AI suggestions",
@@ -428,9 +475,9 @@ export default function SessionDebrief({
         </div>
         <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 18 }}>
           Session with {client.name}
-          {step === "reflection" && " — your view first, before seeing how the client felt"}
-          {step === "feedback" && " — how the client felt"}
-          {step === "reflection_update" && " — compare your first reflection with the client's feedback"}
+          {step === "reflection" && ` — your view first, before seeing how the ${otherLabel} felt`}
+          {step === "feedback" && ` — how the ${otherLabel} felt`}
+          {step === "reflection_update" && ` — compare your first reflection with the ${otherLabel}'s feedback`}
           {step === "facts" && " — observations"}
           {step === "suggestions" && " — coaching tips based on this session"}
         </p>
@@ -440,14 +487,14 @@ export default function SessionDebrief({
         {step === "reflection" && (
           <>
             <QuestionAnswerList
-              prompts={REFLECTION_PROMPTS}
+              prompts={reflectionPrompts}
               answers={reflectionAnswers}
               onChange={setReflectionAnswers}
               placeholder="Your answer..."
             />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={goToFeedback} style={primaryBtnStyle(false)}>
-                Continue to client feedback <ArrowRight size={16} />
+                Continue to {feedbackTitle.toLowerCase()} <ArrowRight size={16} />
               </button>
               <button onClick={goToFeedback} style={secondaryBtnStyle}>
                 Skip for now
@@ -480,7 +527,7 @@ export default function SessionDebrief({
         {step === "reflection_update" && (
           <>
             <QuestionAnswerList
-              prompts={REFLECTION_UPDATE_PROMPTS}
+              prompts={updatePrompts}
               answers={updateAnswers}
               onChange={setUpdateAnswers}
               placeholder="Your answer after reading the client's feedback..."

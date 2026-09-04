@@ -28,6 +28,7 @@ const FP_AIMS: Aim[] = [
 const FIELD_LABELS: Record<Industry, [string, string, string]> = {
   Property: ["Budget (SGD)", "Home Ownership (Current)", "Preferred Property Type"],
   FP: ["Investable Assets / Income (SGD)", "Risk Appetite", "Existing Financial Products / Coverage"],
+  Education: ["Role / opportunity type", "Interview focus", "Hiring / selection stage"],
 };
 
 /**

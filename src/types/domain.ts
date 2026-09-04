@@ -2,7 +2,12 @@ export type DiscType = "D" | "I" | "S" | "C";
 
 export type Grade = "Easy" | "Medium" | "Hard" | "Impossible";
 
-export type Industry = "Property" | "FP";
+/** Locked at signup: Property (sales) or Education (interview module first). */
+export type PracticePack = "property" | "education";
+
+export type StudentGrade = "high_school" | "polytechnic" | "university" | "fresh_grad";
+
+export type Industry = "Property" | "FP" | "Education";
 
 export type ChipTone = "amber" | "rose" | "green" | "lavender" | "teal" | "blue";
 
@@ -19,12 +24,16 @@ export interface Aim {
 export interface Setting {
   key: string;
   desc: string;
+  /** If set, only shown for these student grades (Education pack). */
+  studentGrades?: StudentGrade[];
 }
 
 export interface Challenge {
   id: string;
   label: string;
   promptHint: string;
+  /** If set, only shown for these student grades (Education pack). */
+  studentGrades?: StudentGrade[];
 }
 
 export interface Persona {
@@ -45,6 +54,8 @@ export interface Persona {
   field3: string;
   notes: string;
   industry: Industry;
+  /** Education interview personas: which student grade band can see them. */
+  studentGrade?: StudentGrade;
   isRandom?: boolean;
 }
 
@@ -65,6 +76,12 @@ export interface AgentProfile {
   certification?: string;
   yearsExp?: number | string;
   certifications?: string;
+  /** Education pack: high_school | polytechnic | university | fresh_grad */
+  studentGrade?: StudentGrade | string;
+  /** Education pack: field of study / stream */
+  fieldOfStudy?: string;
+  /** Education pack: what they are practising toward */
+  targetPath?: string;
   [key: string]: unknown;
 }
 

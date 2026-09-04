@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "../constants";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
-import { ENABLE_FINANCIAL_PLANNING } from "../data/personas";
+import { STUDENT_GRADE_OPTIONS, TARGET_PATHS, isStudentGrade } from "../data/educationInterview";
+import { packLabel } from "../data/practicePack";
 import Field from "../components/Field";
 import PageHeader from "../components/PageHeader";
-import type { AgentProfile, DiscType, Industry, UserProfile } from "../types/domain";
+import type { AgentProfile, DiscType, PracticePack, StudentGrade, UserProfile } from "../types/domain";
 
 export default function ProfileScreen({
   profile,
   himself,
   himselfLoaded,
-  industry,
+  practicePack = "property",
   openChatCount = 0,
   onSave,
   onBack,
@@ -21,7 +22,7 @@ export default function ProfileScreen({
   profile: UserProfile | null;
   himself: AgentProfile;
   himselfLoaded: boolean;
-  industry: Industry;
+  practicePack?: PracticePack;
   openChatCount?: number;
   onSave: (data: AgentProfile) => Promise<void> | void;
   onBack: () => void;
@@ -30,6 +31,7 @@ export default function ProfileScreen({
   onComplete?: () => void;
 }) {
   const isOnboarding = mode === "onboarding";
+  const isEducation = practicePack === "education";
   const [form, setForm] = useState<AgentProfile>(himself);
   const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -44,9 +46,9 @@ export default function ProfileScreen({
   dirtyRef.current = dirty;
 
   const hasOpenChats = !isOnboarding && openChatCount > 0;
+  const studentGrade = isStudentGrade(form.studentGrade) ? form.studentGrade : "university";
+  const targetOptions = TARGET_PATHS[studentGrade] || TARGET_PATHS.university;
 
-  // Don't let the form initialize from stale defaults if this screen is
-  // opened before the real saved profile has finished loading.
   useEffect(() => {
     if (himselfLoaded && !initialized) {
       setForm(himself);
@@ -86,7 +88,6 @@ export default function ProfileScreen({
     }
   }
 
-  // Auto-save shortly after the user edits a field (edit mode only).
   useEffect(() => {
     if (isOnboarding || !initialized || !dirty) return;
     const timeout = setTimeout(() => persist(form), 800);
@@ -100,6 +101,10 @@ export default function ProfileScreen({
   async function handleContinue() {
     if (!String(form.name || "").trim()) {
       setError("Please enter your name.");
+      return;
+    }
+    if (isEducation && !isStudentGrade(form.studentGrade)) {
+      setError("Please select your grade.");
       return;
     }
     const ok = await persist(form);
@@ -142,11 +147,13 @@ export default function ProfileScreen({
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: isOnboarding ? 8 : 16 }}>
-          Industry: <span style={{ fontWeight: 700, color: NAVY }}>{!ENABLE_FINANCIAL_PLANNING || industry === "Property" ? "Property" : "Financial Planning"}</span>
+          Field: <span style={{ fontWeight: 700, color: NAVY }}>{packLabel(practicePack)}</span>
         </p>
         {isOnboarding && (
           <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 16 }}>
-            Tell us about yourself as an agent so practice sessions can match you.
+            {isEducation
+              ? "Tell us your grade so interview practice matches your level."
+              : "Tell us about yourself as an agent so practice sessions can match you."}
           </p>
         )}
 
@@ -189,50 +196,113 @@ export default function ProfileScreen({
 
         <div className="arena-profile-grid" style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 12, padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <Field label="Name">
-            <input value={form.name} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
+            <input value={form.name || ""} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
           </Field>
           <Field label="Age">
-            <input type="number" value={form.age} onChange={(e) => update("age", e.target.value)} style={inputStyle} />
+            <input type="number" value={form.age ?? ""} onChange={(e) => update("age", e.target.value)} style={inputStyle} />
           </Field>
-          <Field label="Occupation">
-            <input value={form.occupation} onChange={(e) => update("occupation", e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="Nationality">
-            <input
-              list="profile-nationality-options"
-              value={form.nationality}
-              onChange={(e) => update("nationality", e.target.value)}
-              style={inputStyle}
-            />
-            <datalist id="profile-nationality-options">
-              {NATIONALITIES.map((n) => <option key={n} value={n} />)}
-            </datalist>
-          </Field>
-          <Field label="Experience (months)">
-            <input type="number" value={form.experience} onChange={(e) => update("experience", e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="Educational Level">
-            <select value={form.education} onChange={(e) => update("education", e.target.value)} style={inputStyle}>
-              {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </Field>
-          <Field label="Personality (DISC)">
-            <select value={form.disc} onChange={(e) => update("disc", e.target.value)} style={inputStyle}>
-              {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d as DiscType].name}</option>)}
-            </select>
-          </Field>
-          <Field label="Sales Style">
-            <select value={form.salesStyle} onChange={(e) => update("salesStyle", e.target.value)} style={inputStyle}>
-              {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <Field label="Professional Certification">
-              <select value={form.certification} onChange={(e) => update("certification", e.target.value)} style={inputStyle}>
-                {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
-          </div>
+
+          {isEducation ? (
+            <>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Field label="Grade">
+                  <select
+                    value={isStudentGrade(form.studentGrade) ? form.studentGrade : ""}
+                    onChange={(e) => {
+                      const next = e.target.value as StudentGrade;
+                      update("studentGrade", next);
+                      update("targetPath", TARGET_PATHS[next][0]);
+                    }}
+                    style={inputStyle}
+                  >
+                    <option value="" disabled>Select grade</option>
+                    {STUDENT_GRADE_OPTIONS.map((g) => (
+                      <option key={g.id} value={g.id}>{g.label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Field label="Field of study / stream">
+                  <input
+                    value={form.fieldOfStudy || ""}
+                    onChange={(e) => update("fieldOfStudy", e.target.value)}
+                    placeholder="e.g. Business, Computing, Science"
+                    style={inputStyle}
+                  />
+                </Field>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Field label="What are you practising for?">
+                  <select
+                    value={form.targetPath || targetOptions[0]}
+                    onChange={(e) => update("targetPath", e.target.value)}
+                    style={inputStyle}
+                  >
+                    {targetOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Nationality">
+                <input
+                  list="profile-nationality-options"
+                  value={form.nationality || ""}
+                  onChange={(e) => update("nationality", e.target.value)}
+                  style={inputStyle}
+                />
+                <datalist id="profile-nationality-options">
+                  {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+                </datalist>
+              </Field>
+              <Field label="Personality (DISC)">
+                <select value={form.disc || "I"} onChange={(e) => update("disc", e.target.value)} style={inputStyle}>
+                  {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d as DiscType].name}</option>)}
+                </select>
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="Occupation">
+                <input value={form.occupation || ""} onChange={(e) => update("occupation", e.target.value)} style={inputStyle} />
+              </Field>
+              <Field label="Nationality">
+                <input
+                  list="profile-nationality-options"
+                  value={form.nationality || ""}
+                  onChange={(e) => update("nationality", e.target.value)}
+                  style={inputStyle}
+                />
+                <datalist id="profile-nationality-options">
+                  {NATIONALITIES.map((n) => <option key={n} value={n} />)}
+                </datalist>
+              </Field>
+              <Field label="Experience (months)">
+                <input type="number" value={form.experience ?? ""} onChange={(e) => update("experience", e.target.value)} style={inputStyle} />
+              </Field>
+              <Field label="Educational Level">
+                <select value={form.education || EDU_LEVELS[2]} onChange={(e) => update("education", e.target.value)} style={inputStyle}>
+                  {EDU_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </Field>
+              <Field label="Personality (DISC)">
+                <select value={form.disc || "I"} onChange={(e) => update("disc", e.target.value)} style={inputStyle}>
+                  {Object.keys(DISC).map((d) => <option key={d} value={d}>{d} — {DISC[d as DiscType].name}</option>)}
+                </select>
+              </Field>
+              <Field label="Sales Style">
+                <select value={form.salesStyle || SALES_STYLES[0]} onChange={(e) => update("salesStyle", e.target.value)} style={inputStyle}>
+                  {SALES_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Field label="Professional Certification">
+                  <select value={form.certification || CERTIFICATIONS[0]} onChange={(e) => update("certification", e.target.value)} style={inputStyle}>
+                    {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </>
+          )}
         </div>
 
         {error && <div style={{ background: "#FCE4E4", color: "#7A2E3A", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginTop: 16 }}>{error}</div>}

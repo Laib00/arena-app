@@ -14,6 +14,15 @@ import {
   ALL_PERSONAS,
   generateRandomClient,
 } from "./data/personas";
+import {
+  ENABLE_EDUCATION_PACK,
+  PRACTICE_PACK_STORAGE_KEY,
+  getPackContent,
+  isEducationProfileComplete,
+  isPropertyProfileComplete,
+  normalizePracticePack,
+  resolvePracticePack,
+} from "./data/practicePack";
 import { buildSystemPrompt } from "./prompts";
 import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
@@ -34,6 +43,7 @@ import type {
   ConversationSession,
   Industry,
   Persona,
+  PracticePack,
   Setting,
   UserProfile,
 } from "./types/domain";
@@ -41,6 +51,7 @@ import type {
 type AppUserProfile = UserProfile & {
   agent_profile?: AgentProfile | null;
   industry?: Industry | "Financial Planning" | string | null;
+  practice_pack?: PracticePack | string | null;
   xp?: number | null;
 };
 
@@ -82,6 +93,7 @@ export default function App() {
   const wasOnChatRoute = useRef(false);
   const [step, setStep] = useState<"setup" | "chat">("setup");
   const [industry, setIndustry] = useState<Industry>("Property");
+  const [practicePack, setPracticePack] = useState<PracticePack>("property");
   const [resumeChecked, setResumeChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openConversations, setOpenConversations] = useState<AppConversation[]>([]);
@@ -97,6 +109,16 @@ export default function App() {
     disc: "I",
     salesStyle: "Consultative",
     certification: CERTIFICATIONS[0],
+  };
+
+  const DEFAULT_EDUCATION_HIMSELF: AgentProfile = {
+    name: "",
+    age: "",
+    nationality: "Singaporean",
+    disc: "I",
+    studentGrade: "university",
+    fieldOfStudy: "",
+    targetPath: "Internship",
   };
 
   const [himself, setHimself] = useState<AgentProfile>(DEFAULT_HIMSELF);
@@ -122,13 +144,13 @@ export default function App() {
     }
   }, [session]);
 
-  // Landing CTAs use ?signup=1 — strip once logged in so home stays /dashboard
+  // Landing / trial invite query params — strip once logged in so home stays /dashboard
   useEffect(() => {
     if (!session) return;
-    if (!searchParams.has("signup") && !searchParams.has("mode")) return;
+    const keys = ["signup", "mode", "email", "name", "full_name", "pack"] as const;
+    if (!keys.some((k) => searchParams.has(k))) return;
     const next = new URLSearchParams(searchParams);
-    next.delete("signup");
-    next.delete("mode");
+    for (const k of keys) next.delete(k);
     setSearchParams(next, { replace: true });
   }, [session, searchParams, setSearchParams]);
 
@@ -175,6 +197,10 @@ export default function App() {
             // Fallback if RPC not deployed yet
             const meta = session.user.user_metadata || {};
             const fullName = meta.full_name || meta.name || session.user.email || "";
+            const fallbackPack = resolvePracticePack({
+              authMetaPack: meta.practice_pack,
+              agentProfile: meta.agent_profile as AgentProfile | null | undefined,
+            });
             const { data: created, error: insertErr } = await supabase
               .from("profiles")
               .upsert(
@@ -183,6 +209,7 @@ export default function App() {
                   email: session.user.email,
                   full_name: fullName,
                   industry: "Property",
+                  practice_pack: fallbackPack,
                 },
                 { onConflict: "id" }
               )
@@ -208,12 +235,57 @@ export default function App() {
 
         const loadedProfile = data as AppUserProfile;
         setProfile(loadedProfile);
+
+        let sessionPack: string | null = null;
+        try {
+          sessionPack = sessionStorage.getItem(PRACTICE_PACK_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+
+        const meta = session.user.user_metadata || {};
+        let pack = resolvePracticePack({
+          dbPack: loadedProfile.practice_pack,
+          authMetaPack: meta.practice_pack,
+          agentProfile: loadedProfile.agent_profile as AgentProfile | null | undefined,
+          sessionStoragePack: sessionPack,
+        });
+
+        // Persist pack if we learned it from signup metadata / session (DB may still default to property).
+        if (
+          ENABLE_EDUCATION_PACK &&
+          pack === "education" &&
+          normalizePracticePack(loadedProfile.practice_pack) !== "education"
+        ) {
+          try {
+            await saveProfileFields(loadedProfile.id, { practice_pack: pack });
+            loadedProfile.practice_pack = pack;
+          } catch (e) {
+            console.error("Failed to save practice_pack:", e);
+          }
+        }
+
+        if (sessionPack) {
+          try {
+            sessionStorage.removeItem(PRACTICE_PACK_STORAGE_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        setPracticePack(pack);
+
         const ind: Industry = (!ENABLE_FINANCIAL_PLANNING || loadedProfile.industry !== "Financial Planning")
           ? "Property"
           : "FP";
         setIndustry(ind);
         if (loadedProfile.agent_profile) {
           setHimself(loadedProfile.agent_profile);
+        } else if (pack === "education") {
+          setHimself({
+            ...DEFAULT_EDUCATION_HIMSELF,
+            name: loadedProfile.full_name || "",
+          });
         } else {
           setHimself({
             ...DEFAULT_HIMSELF,
@@ -303,7 +375,7 @@ export default function App() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [randomClient, setRandomClient] = useState<Persona | null>(null);
   const [aimKey, setAimKey] = useState<string | null>(null);
-  const [settingKey, setSettingKey] = useState<string>(SETTINGS[0].key);
+  const [settingKey, setSettingKey] = useState<string>("Canvassing");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [recentSessions, setRecentSessions] = useState<RecentSessions>({
     items: [],
@@ -493,11 +565,28 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayMessages, loading]);
 
-  const industryPersonas = ALL_PERSONAS.filter((p) => p.industry === (industry === "Property" ? "Property" : "FP"));
-  const aims = industry === "Property" ? PROPERTY_AIMS : FP_AIMS;
-  const client = randomClient || ALL_PERSONAS.find((p) => p.id === clientId) || null;
+  const packContent = getPackContent(practicePack, himself);
+  const industryPersonas = practicePack === "education"
+    ? packContent.personas
+    : ALL_PERSONAS.filter((p) => p.industry === (industry === "Property" ? "Property" : "FP"));
+  const aims = practicePack === "education"
+    ? packContent.aims
+    : (industry === "Property" ? PROPERTY_AIMS : FP_AIMS);
+  const packSettings = practicePack === "education" ? packContent.settings : SETTINGS;
+  const packChallenges = packContent.challenges;
+  const client = randomClient || industryPersonas.find((p) => p.id === clientId) || ALL_PERSONAS.find((p) => p.id === clientId) || null;
   const aim = aims.find((a) => a.key === aimKey) || null;
-  const setting = SETTINGS.find((s) => s.key === settingKey) || null;
+  const setting = packSettings.find((s) => s.key === settingKey) || null;
+
+  // Keep setting/aim/client valid when education grade (or pack content) changes
+  useEffect(() => {
+    setAimKey(null);
+    setClientId(null);
+    setRandomClient(null);
+    setChallenge(null);
+    const nextSettings = getPackContent(practicePack, himself).settings;
+    setSettingKey(nextSettings[0]?.key || "");
+  }, [practicePack, himself.studentGrade]);
 
   function pickFixedClient(id: string | null) {
     setRandomClient(null);
@@ -505,6 +594,13 @@ export default function App() {
   }
 
   function generateRandom() {
+    if (practicePack === "education") {
+      const pool = industryPersonas;
+      const pick = pool[Math.floor(Math.random() * pool.length)] || pool[0];
+      setClientId(null);
+      setRandomClient(pick ? { ...pick, isRandom: true, id: `RAND-${Date.now()}` } : null);
+      return;
+    }
     const industryKey = industry === "Property" ? "Property" : "FP";
     setClientId(null);
     setRandomClient(generateRandomClient(industryKey));
@@ -655,7 +751,7 @@ export default function App() {
     const pool = industryPersonas.filter((p) => p.grade === "Medium" || p.grade === "Hard");
     const pick = pool[Math.floor(Math.random() * pool.length)] || industryPersonas[0];
     const startAim = aims[Math.floor(Math.random() * aims.length)];
-    const startSetting = SETTINGS[Math.floor(Math.random() * SETTINGS.length)];
+    const startSetting = packSettings[Math.floor(Math.random() * packSettings.length)];
     if (!pick || !startAim || !startSetting) return;
     await startRoleplayWith({
       client: pick,
@@ -878,8 +974,10 @@ export default function App() {
     );
   }
 
-  // Google (and any account without saved agent_profile) must complete profile once
-  const needsProfileSetup = !profile.agent_profile;
+  // Google (and any incomplete profile) must complete setup once
+  const needsProfileSetup = practicePack === "education"
+    ? !isEducationProfileComplete(profile.agent_profile)
+    : !isPropertyProfileComplete(profile.agent_profile);
   if (needsProfileSetup) {
     return (
       <>
@@ -889,7 +987,7 @@ export default function App() {
           profile={profile}
           himself={himself}
           himselfLoaded={himselfLoaded}
-          industry={industry}
+          practicePack={practicePack}
           openChatCount={0}
           onSave={persistAgentProfile}
           onBack={goHome}
@@ -945,7 +1043,7 @@ export default function App() {
           profile={profile}
           himself={profile?.agent_profile || himself}
           himselfLoaded={himselfLoaded}
-          industry={industry}
+          practicePack={practicePack}
           openChatCount={openConversations.length}
           onSave={persistAgentProfile}
           onBack={goHome}
@@ -1001,6 +1099,9 @@ export default function App() {
         )}
         {step === "setup" ? (
           <SetupScreen
+            practicePack={practicePack}
+            practiceHeadline={packContent.practiceHeadline}
+            counterpartyLabel={packContent.counterpartyLabel}
             industry={industry}
             switchIndustry={switchIndustry}
             himself={himself}
@@ -1014,8 +1115,10 @@ export default function App() {
             aims={aims}
             aimKey={aimKey}
             setAimKey={setAimKey}
+            settings={packSettings}
             settingKey={settingKey}
             setSettingKey={setSettingKey}
+            challenges={packChallenges}
             challenge={challenge}
             setChallenge={setChallenge}
             canStart={canStart}

@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
-import { SETTINGS, GRADE_ORDER, CHALLENGES } from "../data/personas";
+import { GRADE_ORDER } from "../data/personas";
 import { getLevelProgress } from "../xp";
 import GradeBadge from "../components/GradeBadge";
 import PersonaCard from "../components/PersonaCard";
@@ -43,6 +43,8 @@ import type {
   ConversationSession,
   Grade,
   Persona,
+  PracticePack,
+  Setting,
 } from "../types/domain";
 
 const CHALLENGE_GREEN = "#3D8B6E";
@@ -263,6 +265,13 @@ const GRADE_BLURBS: Record<Grade, string> = {
   Impossible: "They want something no honest agent can deliver, and they won't accept no. You can't win. You can only handle it well.",
 };
 
+const EDUCATION_GRADE_BLURBS: Record<Grade, string> = {
+  Easy: "Friendly interviewer, clear questions, patient with nerves. Good for finding your rhythm.",
+  Medium: "Professional follow-ups — they expect structure and real examples, not vague answers.",
+  Hard: "Skeptical interviewer who probes hard and tests ownership. Trust and clarity have to be earned.",
+  Impossible: "Contradictory standards or extreme pressure — you can't perfectly please them. You can only handle it well.",
+};
+
 const STEP_COPY: Record<WizardStep, { title: string; subtitle: string }> = {
   grade: { title: "Choose difficulty", subtitle: "How tough should this client be?" },
   client: { title: "Choose your client", subtitle: "Pick who you'll practise with." },
@@ -322,10 +331,18 @@ const CHALLENGE_ICONS: Record<string, LucideIcon> = {
 type ChallengeSetupModalProps = {
   open: boolean;
   onClose: () => void;
+  challenges: Challenge[];
+  counterpartyLabel?: string;
   onSelectChallenge: (challenge: Challenge) => void;
 };
 
-function ChallengeSetupModal({ open, onClose, onSelectChallenge }: ChallengeSetupModalProps) {
+function ChallengeSetupModal({
+  open,
+  onClose,
+  challenges,
+  counterpartyLabel = "client",
+  onSelectChallenge,
+}: ChallengeSetupModalProps) {
   if (!open) return null;
 
   return (
@@ -365,11 +382,11 @@ function ChallengeSetupModal({ open, onClose, onSelectChallenge }: ChallengeSetu
           Choose a challenge
         </h2>
         <p style={{ fontSize: 14, color: "#6B7280", marginTop: 0, marginBottom: 18, lineHeight: 1.5, maxWidth: 420 }}>
-          Pick one difficult moment to train. We'll match you with a random client and scenario focused on it.
+          Pick one difficult moment to train. We&apos;ll match you with a random {counterpartyLabel.toLowerCase()} and scenario focused on it.
         </p>
 
         <div className="arena-challenge-list">
-          {CHALLENGES.map((c) => {
+          {challenges.map((c) => {
             const Icon = CHALLENGE_ICONS[c.id] || Target;
             return (
               <button
@@ -383,7 +400,7 @@ function ChallengeSetupModal({ open, onClose, onSelectChallenge }: ChallengeSetu
                 </span>
                 <span className="arena-challenge-option-copy">
                   <span className="arena-challenge-option-title">{c.label}</span>
-                  <span className="arena-challenge-option-blurb">{CHALLENGE_BLURBS[c.id]}</span>
+                  <span className="arena-challenge-option-blurb">{CHALLENGE_BLURBS[c.id] || c.label}</span>
                 </span>
                 <ChevronRight size={18} color="#C4C0B6" strokeWidth={1.8} className="arena-challenge-option-chevron" />
               </button>
@@ -398,6 +415,8 @@ function ChallengeSetupModal({ open, onClose, onSelectChallenge }: ChallengeSetu
 type PracticeSetupModalProps = {
   open: boolean;
   onClose: () => void;
+  practicePack?: PracticePack;
+  counterpartyLabel?: string;
   industry?: string;
   switchIndustry?: (industry: string) => void | Promise<void>;
   himself: AgentProfile;
@@ -411,6 +430,7 @@ type PracticeSetupModalProps = {
   aims: Aim[];
   aimKey: string | null;
   setAimKey: (key: string) => void;
+  settings: Setting[];
   settingKey: string | null;
   setSettingKey: (key: string) => void;
   challenge?: Challenge | null;
@@ -422,6 +442,8 @@ type PracticeSetupModalProps = {
 function PracticeSetupModal({
   open,
   onClose,
+  practicePack = "property",
+  counterpartyLabel = "Client",
   himself,
   onEditProfile,
   industryPersonas,
@@ -433,6 +455,7 @@ function PracticeSetupModal({
   aims,
   aimKey,
   setAimKey,
+  settings,
   settingKey,
   setSettingKey,
   onStart,
@@ -449,7 +472,14 @@ function PracticeSetupModal({
   if (!open) return null;
 
   const stepIndex = WIZARD_STEPS.indexOf(wizardStep);
-  const copy = STEP_COPY[wizardStep];
+  const copy = practicePack === "education"
+    ? ({
+        grade: { title: "Choose difficulty", subtitle: "How tough should this interviewer be?" },
+        client: { title: "Choose your interviewer", subtitle: "Pick who will interview you." },
+        scenario: { title: "Choose scenario", subtitle: "Set the aim and the setting for this interview." },
+      } as const)[wizardStep]
+    : STEP_COPY[wizardStep];
+  const gradeBlurbs = practicePack === "education" ? EDUCATION_GRADE_BLURBS : GRADE_BLURBS;
   const gradeClients = selectedGrade
     ? industryPersonas.filter((p) => p.grade === selectedGrade)
     : [];
@@ -536,7 +566,13 @@ function PracticeSetupModal({
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{himself.name || "(no name set)"}</div>
                 <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
-                  {himself.occupation}{himself.age ? ` · ${himself.age}` : ""} · DISC {himself.disc}
+                  {practicePack === "education"
+                    ? [
+                        himself.studentGrade ? String(himself.studentGrade).replace(/_/g, " ") : null,
+                        himself.age ? String(himself.age) : null,
+                        himself.disc ? `DISC ${himself.disc}` : null,
+                      ].filter(Boolean).join(" · ")
+                    : `${himself.occupation || ""}${himself.age ? ` · ${himself.age}` : ""} · DISC ${himself.disc}`}
                 </div>
               </div>
               <button
@@ -557,7 +593,7 @@ function PracticeSetupModal({
                   style={{ "--grade-color": GRADE_COLOR[grade] } as CSSProperties}
                 >
                   <GradeBadge grade={grade} size="md" />
-                  <p>{GRADE_BLURBS[grade]}</p>
+                  <p>{gradeBlurbs[grade]}</p>
                 </button>
               ))}
             </div>
@@ -615,7 +651,7 @@ function PracticeSetupModal({
               </div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Setting</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {SETTINGS.map((s) => (
+                {settings.map((s) => (
                   <button
                     key={s.key}
                     onClick={() => setSettingKey(s.key)}
@@ -660,6 +696,9 @@ type RecentSessions = {
 };
 
 type SetupScreenProps = {
+  practicePack?: PracticePack;
+  practiceHeadline?: string;
+  counterpartyLabel?: string;
   industry: string;
   switchIndustry: (industry: string) => void | Promise<void>;
   himself: AgentProfile;
@@ -673,8 +712,10 @@ type SetupScreenProps = {
   aims: Aim[];
   aimKey: string | null;
   setAimKey: (key: string) => void;
+  settings: Setting[];
   settingKey: string | null;
   setSettingKey: (key: string) => void;
+  challenges: Challenge[];
   challenge: Challenge | null;
   setChallenge: (challenge: Challenge | null) => void;
   canStart: boolean;
@@ -687,9 +728,13 @@ type SetupScreenProps = {
 };
 
 export default function SetupScreen({
+  practicePack = "property",
+  practiceHeadline = "What will you practise today?",
+  counterpartyLabel = "Client",
   industry, switchIndustry, himself, onEditProfile, industryPersonas, metPersonaIds,
-  clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey, settingKey, setSettingKey,
-  challenge, setChallenge,
+  clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey,
+  settings, settingKey, setSettingKey,
+  challenges, challenge, setChallenge,
   canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onExpandReplayList, onViewHistory,
 }: SetupScreenProps) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -739,7 +784,7 @@ export default function SetupScreen({
             Welcome to your arena
           </div>
           <h1 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 36, letterSpacing: 0.2, margin: 0, color: NAVY, lineHeight: 1.15 }}>
-            What will you practise today?
+            {practiceHeadline}
           </h1>
         </div>
 
@@ -961,6 +1006,8 @@ export default function SetupScreen({
       <ChallengeSetupModal
         open={challengeModalOpen}
         onClose={() => setChallengeModalOpen(false)}
+        challenges={challenges}
+        counterpartyLabel={counterpartyLabel}
         onSelectChallenge={(c) => {
           setChallengeModalOpen(false);
           onStartChallenge?.(c);
@@ -970,6 +1017,8 @@ export default function SetupScreen({
       <PracticeSetupModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
+        practicePack={practicePack}
+        counterpartyLabel={counterpartyLabel}
         industry={industry}
         switchIndustry={switchIndustry}
         himself={himself}
@@ -983,6 +1032,7 @@ export default function SetupScreen({
         aims={aims}
         aimKey={aimKey}
         setAimKey={setAimKey}
+        settings={settings}
         settingKey={settingKey}
         setSettingKey={setSettingKey}
         challenge={challenge}
