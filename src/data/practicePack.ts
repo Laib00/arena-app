@@ -28,10 +28,12 @@ import type {
 export const PRACTICE_PACK_STORAGE_KEY = "arena_practice_pack";
 
 /**
- * Flip to true when the Education / interview student trial goes live.
- * While false, signup and the app stay Property-only (same idea as ENABLE_FINANCIAL_PLANNING).
+ * Education / interview pack. Off by default (Property trial).
+ * Local: set VITE_ENABLE_EDUCATION_PACK=true in .env, then restart `npm run dev`.
+ * Live student trial: set the same env on the VPS (or flip default to true) and rebuild.
  */
-export const ENABLE_EDUCATION_PACK = false;
+export const ENABLE_EDUCATION_PACK =
+  import.meta.env.VITE_ENABLE_EDUCATION_PACK === "true";
 
 export function normalizePracticePack(value: unknown): PracticePack {
   if (!ENABLE_EDUCATION_PACK) return "property";
