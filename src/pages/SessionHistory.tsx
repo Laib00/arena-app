@@ -5,7 +5,7 @@ import { ReflectionAnswersView } from "../SessionDebrief";
 import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
 import GradeBadge from "../components/GradeBadge";
 import PageHeader from "../components/PageHeader";
-import type { ConversationSession, UserProfile } from "../types/domain";
+import type { ConversationSession, Industry, UserProfile } from "../types/domain";
 
 type HistoryConversation = ConversationSession & {
   trainee?: {
@@ -41,12 +41,14 @@ type HistoryDetail = {
 export default function SessionHistory({
   profile,
   scope,
+  industry,
   onBack,
   onSignOut,
   onContinue,
 }: {
   profile: UserProfile;
   scope: "mine" | "team" | string;
+  industry?: Industry;
   onBack: () => void;
   onSignOut: () => void;
   onContinue?: (conversation: HistoryConversation) => void;
@@ -60,7 +62,7 @@ export default function SessionHistory({
 
   useEffect(() => {
     loadConversations();
-  }, []);
+  }, [scope, profile.id, industry]);
 
   async function loadConversations() {
     setLoading(true);
@@ -69,6 +71,9 @@ export default function SessionHistory({
       .select("*, trainee:user_id(full_name, email)")
       .order("started_at", { ascending: false });
     if (scope === "mine") query = query.eq("user_id", profile.id);
+    if (scope === "mine" && industry) {
+      query = query.eq("industry", industry === "Property" ? "Property" : "FP");
+    }
     const { data } = await query;
     setConversations(data || []);
     setLoading(false);

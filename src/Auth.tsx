@@ -2,7 +2,15 @@ import React, { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
-import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "./constants";
+import {
+  DISC,
+  SALES_STYLES,
+  CERTIFICATIONS,
+  NATIONALITIES,
+  EDU_LEVELS,
+  certificationsForIndustry,
+  occupationForIndustry,
+} from "./constants";
 import {
   STUDENT_GRADE_OPTIONS,
   TARGET_PATHS,
@@ -34,6 +42,8 @@ function inviteFromSearchParams(params: URLSearchParams) {
   return { email, name, pack, openSignup };
 }
 
+type SignupIndustry = "Property" | "Financial Planning";
+
 export default function Auth() {
   const [searchParams] = useSearchParams();
   const invite = inviteFromSearchParams(searchParams);
@@ -43,20 +53,21 @@ export default function Auth() {
     ENABLE_EDUCATION_PACK && invite.pack === "education" ? "education" : "property";
 
   const [mode, setMode] = useState(invite.openSignup ? "signup" : "login");
-  // signup: choose pack → choose method → email → profile
+  // signup: choose pack → choose method → email → industry → profile
   // Invite with pack (or Education gated) skips pack picker; email/name are prefilled.
-  const [signupStep, setSignupStep] = useState(skipPackStep ? "choose" : "pack"); // pack | choose | email | profile
+  const [signupStep, setSignupStep] = useState(skipPackStep ? "choose" : "pack"); // pack | choose | email | industry | profile
   const [practicePack, setPracticePack] = useState<PracticePack>(initialPack);
   const [email, setEmail] = useState(invite.email);
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState(invite.name);
+  const [industry, setIndustry] = useState<SignupIndustry>("Property");
   const [age, setAge] = useState("");
   const [nationality, setNationality] = useState("Singaporean");
   const [experience, setExperience] = useState("");
   const [education, setEducation] = useState<string>(EDU_LEVELS[2]);
   const [disc, setDisc] = useState("I");
   const [salesStyle, setSalesStyle] = useState<string>(SALES_STYLES[0]);
-  const [certification, setCertification] = useState<string>(CERTIFICATIONS[0]);
+  const [certification, setCertification] = useState<string>(certificationsForIndustry("Property")[0]);
   const [studentGrade, setStudentGrade] = useState<StudentGrade>("university");
   const [fieldOfStudy, setFieldOfStudy] = useState("");
   const [targetPath, setTargetPath] = useState(TARGET_PATHS.university[0]);
@@ -90,6 +101,8 @@ export default function Auth() {
     }
   }
 
+  const industryCerts = certificationsForIndustry(industry);
+
   function goLogin() {
     setMode("login");
     setSignupStep(skipPackStep ? "choose" : "pack");
@@ -104,13 +117,24 @@ export default function Auth() {
     setMessage(null);
   }
 
-  function continueToProfile(e: FormEvent<HTMLFormElement>) {
+  function continueToIndustry(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!email.trim() || !password || password.length < 6) {
       setError("Enter a valid email and a password of at least 6 characters.");
       return;
     }
+    setSignupStep("industry");
+  }
+
+  function selectIndustry(next: SignupIndustry) {
+    setIndustry(next);
+    const certs = certificationsForIndustry(next);
+    setCertification(certs[0] ?? "");
+  }
+
+  function continueToProfile() {
+    setError(null);
     setSignupStep("profile");
   }
 
@@ -157,7 +181,7 @@ export default function Auth() {
           : {
               name: fullName || email,
               age,
-              occupation: "Property Agent",
+              occupation: occupationForIndustry(industry),
               nationality,
               experience,
               education,
@@ -171,7 +195,7 @@ export default function Auth() {
         options: {
           data: {
             full_name: fullName || email,
-            industry: "Property",
+            industry: industry === "Property" ? "Property" : "Financial Planning",
             practice_pack: practicePack,
             agent_profile: agentProfile,
           },
@@ -209,7 +233,7 @@ export default function Auth() {
     }
   }
 
-  const wide = mode === "signup" && signupStep === "profile";
+  const wide = mode === "signup" && (signupStep === "profile" || signupStep === "industry");
   const subtitle =
     mode === "login"
       ? "Log in to continue"
@@ -219,9 +243,11 @@ export default function Auth() {
           ? "How do you want to sign up?"
           : signupStep === "email"
             ? "Sign up with email"
-            : practicePack === "education"
-              ? "Your student profile"
-              : "Your agent profile";
+            : signupStep === "industry"
+              ? "What do you practise for?"
+              : practicePack === "education"
+                ? "Your student profile"
+                : "Your agent profile";
 
   const targetOptions = TARGET_PATHS[studentGrade] || TARGET_PATHS.university;
 
@@ -340,7 +366,7 @@ export default function Auth() {
         )}
 
         {mode === "signup" && signupStep === "email" && (
-          <form onSubmit={continueToProfile} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <form onSubmit={continueToIndustry} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
             <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} style={inputStyle} />
             {error && <ErrorBox>{error}</ErrorBox>}
@@ -349,6 +375,59 @@ export default function Auth() {
               Back
             </button>
           </form>
+        )}
+
+        {mode === "signup" && signupStep === "industry" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {(
+                [
+                  {
+                    key: "Property" as const,
+                    title: "Property",
+                    body: "Buyers, sellers, tenants, and listings.",
+                  },
+                  {
+                    key: "Financial Planning" as const,
+                    title: "Financial Planning",
+                    body: "Protection, investment, and retirement conversations.",
+                  },
+                ] as const
+              ).map((opt) => {
+                const selected = industry === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => selectIndustry(opt.key)}
+                    style={{
+                      textAlign: "left",
+                      padding: "16px 14px",
+                      borderRadius: 12,
+                      border: selected ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: selected ? NAVY : "#fff",
+                      color: selected ? "#fff" : NAVY,
+                      cursor: "pointer",
+                      boxShadow: selected ? "0 8px 20px rgba(10,22,40,0.18)" : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{opt.title}</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.45, opacity: selected ? 0.9 : 0.7 }}>{opt.body}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" onClick={continueToProfile} style={primaryBtnStyle(false)}>
+              Continue
+            </button>
+            <button
+              type="button"
+              onClick={() => { setError(null); setSignupStep("email"); }}
+              style={linkStyle}
+            >
+              Back
+            </button>
+          </div>
         )}
 
         {mode === "signup" && signupStep === "profile" && (
@@ -361,12 +440,25 @@ export default function Auth() {
               style={inputStyle}
             />
             <div>
-              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Field</div>
-              <div style={{
-                padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                border: `2px solid ${NAVY}`, background: NAVY, color: "#fff",
-              }}>
-                {practicePack === "education" ? "Education" : "Property"}
+              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>
+                {practicePack === "education" ? "Field" : "Industry"}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{
+                  padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  border: `2px solid ${NAVY}`, background: NAVY, color: "#fff", flex: 1,
+                }}>
+                  {practicePack === "education" ? "Education" : industry}
+                </div>
+                {practicePack !== "education" && (
+                  <button
+                    type="button"
+                    onClick={() => setSignupStep("industry")}
+                    style={{ ...linkStyle, flexShrink: 0 }}
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
 
@@ -456,9 +548,7 @@ export default function Auth() {
                   </SmallField>
                   <SmallField label="Personality (DISC)">
                     <select value={disc} onChange={(e) => setDisc(e.target.value)} style={inputStyle}>
-                      {(Object.keys(DISC) as DiscType[]).map((d) => (
-                        <option key={d} value={d}>{d} — {DISC[d].name}</option>
-                      ))}
+                      {(Object.keys(DISC) as DiscType[]).map((d) => <option key={d} value={d}>{d} — {DISC[d].name}</option>)}
                     </select>
                   </SmallField>
                   <SmallField label="Sales Style">
@@ -468,10 +558,12 @@ export default function Auth() {
                   </SmallField>
                   <SmallField label="Professional Certification" full>
                     <select value={certification} onChange={(e) => setCertification(e.target.value)} style={inputStyle}>
-                      {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {industryCerts.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </SmallField>
                 </div>
+              </div>
+>>>>>>> 54d67ab (Enable Financial Planning as a separate practice workspace.)
               </div>
             )}
 
@@ -479,7 +571,14 @@ export default function Auth() {
             <button type="submit" disabled={loading} style={primaryBtnStyle(loading)}>
               {loading ? "Please wait..." : "Create account"}
             </button>
-            <button type="button" onClick={() => { setError(null); setSignupStep("email"); }} style={linkStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setSignupStep(practicePack === "education" ? "email" : "industry");
+              }}
+              style={linkStyle}
+            >
               Back
             </button>
           </form>

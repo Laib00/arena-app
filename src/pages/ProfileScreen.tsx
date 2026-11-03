@@ -1,19 +1,29 @@
 import React, { useState, useRef, useEffect } from "react";
-import { DISC, SALES_STYLES, CERTIFICATIONS, NATIONALITIES, EDU_LEVELS } from "../constants";
+import {
+  DISC,
+  SALES_STYLES,
+  NATIONALITIES,
+  EDU_LEVELS,
+  certificationsForIndustry,
+  occupationForIndustry,
+} from "../constants";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
 import { STUDENT_GRADE_OPTIONS, TARGET_PATHS, isStudentGrade } from "../data/educationInterview";
 import { packLabel } from "../data/practicePack";
 import Field from "../components/Field";
 import PageHeader from "../components/PageHeader";
-import type { AgentProfile, DiscType, PracticePack, StudentGrade, UserProfile } from "../types/domain";
+import type { AgentProfile, DiscType, Industry, PracticePack, StudentGrade, UserProfile } from "../types/domain";
+import { ENABLE_FINANCIAL_PLANNING } from "../constants";
 
 export default function ProfileScreen({
   profile,
   himself,
   himselfLoaded,
   practicePack = "property",
+  industry = "Property",
   openChatCount = 0,
   onSave,
+  onIndustryChange,
   onBack,
   onSignOut,
   mode = "edit",
@@ -23,8 +33,10 @@ export default function ProfileScreen({
   himself: AgentProfile;
   himselfLoaded: boolean;
   practicePack?: PracticePack;
+  industry?: Industry;
   openChatCount?: number;
   onSave: (data: AgentProfile) => Promise<void> | void;
+  onIndustryChange?: (industry: string) => Promise<void> | void;
   onBack: () => void;
   onSignOut: () => void;
   mode?: "edit" | "onboarding";
@@ -39,6 +51,7 @@ export default function ProfileScreen({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openChatNotice, setOpenChatNotice] = useState<string | null>(null);
+  const [industrySaving, setIndustrySaving] = useState(false);
   const formRef = useRef(form);
   const dirtyRef = useRef(false);
 
@@ -48,6 +61,8 @@ export default function ProfileScreen({
   const hasOpenChats = !isOnboarding && openChatCount > 0;
   const studentGrade = isStudentGrade(form.studentGrade) ? form.studentGrade : "university";
   const targetOptions = TARGET_PATHS[studentGrade] || TARGET_PATHS.university;
+  const industryCerts = certificationsForIndustry(industry);
+  const industryLabel = !ENABLE_FINANCIAL_PLANNING || industry === "Property" ? "Property" : "Financial Planning";
 
   useEffect(() => {
     if (himselfLoaded && !initialized) {
@@ -57,11 +72,52 @@ export default function ProfileScreen({
     }
   }, [himselfLoaded, initialized, himself]);
 
+  // Workspace switch loads the other industry's agent profile into this form.
+  useEffect(() => {
+    if (!initialized || !himselfLoaded) return;
+    setForm(himself);
+    setDirty(false);
+    setSaved(false);
+    setOpenChatNotice(null);
+  }, [industry]);
+
+  // Keep occupation/cert in sync when industry changes (e.g. Google onboarding).
+  useEffect(() => {
+    if (!initialized) return;
+    const certs = certificationsForIndustry(industry);
+    setForm((prev) => {
+      const nextOcc = occupationForIndustry(industry);
+      const nextCert = certs.includes(String(prev.certification || ""))
+        ? prev.certification
+        : certs[0];
+      if (prev.occupation === nextOcc && prev.certification === nextCert) return prev;
+      return { ...prev, occupation: nextOcc, certification: nextCert };
+    });
+  }, [industry, initialized]);
+
   function update(field: keyof AgentProfile | string, value: unknown) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setDirty(true);
     setSaved(false);
     setOpenChatNotice(null);
+  }
+
+  async function handleIndustryPick(next: "Property" | "Financial Planning") {
+    if (!onIndustryChange || !ENABLE_FINANCIAL_PLANNING) return;
+    if ((next === "Property" ? "Property" : "FP") === industry) return;
+    setIndustrySaving(true);
+    setError(null);
+    try {
+      // Preserve unsaved edits on the current workspace before flipping.
+      if (dirty) await persist(form);
+      await onIndustryChange(next);
+      setDirty(false);
+      setSaved(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to switch workspace");
+    } finally {
+      setIndustrySaving(false);
+    }
   }
 
   async function persist(data: AgentProfile) {
@@ -146,14 +202,76 @@ export default function ProfileScreen({
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "36px 24px 60px" }}>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{profile?.email}</p>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: isOnboarding ? 8 : 16 }}>
-          Field: <span style={{ fontWeight: 700, color: NAVY }}>{packLabel(practicePack)}</span>
-        </p>
+        {ENABLE_FINANCIAL_PLANNING && onIndustryChange && isOnboarding && practicePack !== "education" ? (
+          <div style={{ marginBottom: 18 }}>
+            <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 10 }}>
+              What do you practise for?
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {(
+                [
+                  { key: "Property" as const, title: "Property", body: "Buyers, sellers, tenants, listings." },
+                  { key: "Financial Planning" as const, title: "Financial Planning", body: "Protection, investment, retirement." },
+                ] as const
+              ).map((opt) => {
+                const selected = industryLabel === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={industrySaving}
+                    onClick={() => handleIndustryPick(opt.key)}
+                    style={{
+                      textAlign: "left",
+                      padding: "14px 12px",
+                      borderRadius: 12,
+                      border: selected ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: selected ? NAVY : "#fff",
+                      color: selected ? "#fff" : NAVY,
+                      cursor: industrySaving ? "wait" : "pointer",
+                      opacity: industrySaving ? 0.7 : 1,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{opt.title}</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.4, opacity: selected ? 0.9 : 0.7 }}>{opt.body}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : ENABLE_FINANCIAL_PLANNING && onIndustryChange ? (
+          <div style={{ marginBottom: 16, maxWidth: 320 }}>
+            <Field label="Switch workspace">
+              <select
+                value={industryLabel}
+                disabled={industrySaving}
+                onChange={(e) => {
+                  const next = e.target.value as "Property" | "Financial Planning";
+                  if (next !== industryLabel) handleIndustryPick(next);
+                }}
+                style={{
+                  ...inputStyle,
+                  cursor: industrySaving ? "wait" : "pointer",
+                  opacity: industrySaving ? 0.7 : 1,
+                }}
+              >
+                <option value="Property">Property</option>
+                <option value="Financial Planning">Financial Planning</option>
+              </select>
+            </Field>
+            <p style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.45, marginTop: 8 }}>
+              Switching opens that profession’s dashboard — chats, history, and scenarios stay separate.
+            </p>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: "#6B7280", marginBottom: isOnboarding ? 8 : 16 }}>
+            Workspace: <span style={{ fontWeight: 700, color: NAVY }}>{industryLabel}</span>
+          </p>
+        )}
         {isOnboarding && (
           <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 16 }}>
-            {isEducation
-              ? "Tell us your grade so interview practice matches your level."
-              : "Tell us about yourself as an agent so practice sessions can match you."}
+            Tell us about yourself so practice sessions can match you.
+>>>>>>> 54d67ab (Enable Financial Planning as a separate practice workspace.)
           </p>
         )}
 
@@ -296,8 +414,8 @@ export default function ProfileScreen({
               </Field>
               <div style={{ gridColumn: "1 / -1" }}>
                 <Field label="Professional Certification">
-                  <select value={form.certification || CERTIFICATIONS[0]} onChange={(e) => update("certification", e.target.value)} style={inputStyle}>
-                    {CERTIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <select value={form.certification || industryCerts[0]} onChange={(e) => update("certification", e.target.value)} style={inputStyle}>
+                    {industryCerts.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </Field>
               </div>

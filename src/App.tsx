@@ -4,7 +4,6 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 import { formatReflectionForPrompt } from "./SessionDebrief";
-import { CERTIFICATIONS } from "./constants";
 import { NAVY, CREAM, GOLD, ResponsiveStyles } from "./theme";
 import {
   ENABLE_FINANCIAL_PLANNING,
@@ -23,6 +22,15 @@ import {
   normalizePracticePack,
   resolvePracticePack,
 } from "./data/practicePack";
+import {
+  defaultProfileForIndustry,
+  hasUsableAgentProfile,
+  industryDbValue,
+  normalizeIndustry,
+  parseAgentWorkspaces,
+  putWorkspaceProfile,
+  type WorkspaceBag,
+} from "./agentWorkspaces";
 import { buildSystemPrompt } from "./prompts";
 import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
@@ -49,7 +57,7 @@ import type {
 } from "./types/domain";
 
 type AppUserProfile = UserProfile & {
-  agent_profile?: AgentProfile | null;
+  agent_profile?: AgentProfile | WorkspaceBag | null;
   industry?: Industry | "Financial Planning" | string | null;
   practice_pack?: PracticePack | string | null;
   xp?: number | null;
@@ -94,22 +102,16 @@ export default function App() {
   const [step, setStep] = useState<"setup" | "chat">("setup");
   const [industry, setIndustry] = useState<Industry>("Property");
   const [practicePack, setPracticePack] = useState<PracticePack>("property");
+  const [workspaceBag, setWorkspaceBag] = useState<WorkspaceBag>({ version: 1 });
   const [resumeChecked, setResumeChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openConversations, setOpenConversations] = useState<AppConversation[]>([]);
   const [metPersonaIds, setMetPersonaIds] = useState<Set<string>>(new Set());
+  const industryRef = useRef<Industry>("Property");
+  const workspaceBagRef = useRef<WorkspaceBag>({ version: 1 });
+  const himselfRef = useRef<AgentProfile>(defaultProfileForIndustry("Property"));
 
-  const DEFAULT_HIMSELF: AgentProfile = {
-    name: "",
-    age: "",
-    occupation: "Property Agent",
-    nationality: "Singaporean",
-    experience: "",
-    education: "Bachelor's Degree",
-    disc: "I",
-    salesStyle: "Consultative",
-    certification: CERTIFICATIONS[0],
-  };
+  const DEFAULT_HIMSELF: AgentProfile = defaultProfileForIndustry("Property");
 
   const DEFAULT_EDUCATION_HIMSELF: AgentProfile = {
     name: "",
@@ -122,6 +124,9 @@ export default function App() {
   };
 
   const [himself, setHimself] = useState<AgentProfile>(DEFAULT_HIMSELF);
+  industryRef.current = industry;
+  workspaceBagRef.current = workspaceBag;
+  himselfRef.current = himself;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -279,8 +284,10 @@ export default function App() {
           ? "Property"
           : "FP";
         setIndustry(ind);
-        if (loadedProfile.agent_profile) {
-          setHimself(loadedProfile.agent_profile);
+        const parsed = parseAgentWorkspaces(loadedProfile.agent_profile, ind);
+        setWorkspaceBag(parsed.bag);
+        if (parsed.current) {
+          setHimself(parsed.current);
         } else if (pack === "education") {
           setHimself({
             ...DEFAULT_EDUCATION_HIMSELF,
@@ -288,10 +295,8 @@ export default function App() {
           });
         } else {
           setHimself({
-            ...DEFAULT_HIMSELF,
+            ...defaultProfileForIndustry(ind),
             name: loadedProfile.full_name || "",
-            occupation: ind === "Property" ? "Property Agent" : "Financial Advisor",
-            certification: ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1],
           });
         }
         setHimselfLoaded(true);
@@ -366,10 +371,24 @@ export default function App() {
 
   async function persistAgentProfile(agentProfile: AgentProfile): Promise<void> {
     if (!profile) throw new Error("Profile not loaded yet.");
-    const row = await saveProfileFields(profile.id, { agent_profile: agentProfile });
-    const saved = (row.agent_profile as AgentProfile | null) ?? agentProfile;
+    const currentIndustry = industryRef.current;
+    const nextBag = putWorkspaceProfile(workspaceBagRef.current, currentIndustry, agentProfile);
+    const row = await saveProfileFields(profile.id, {
+      agent_profile: nextBag,
+      industry: industryDbValue(currentIndustry),
+    });
+    const savedRaw = row.agent_profile ?? nextBag;
+    const parsed = parseAgentWorkspaces(savedRaw, currentIndustry);
+    const saved = parsed.current ?? agentProfile;
+    workspaceBagRef.current = parsed.bag;
+    himselfRef.current = saved;
+    setWorkspaceBag(parsed.bag);
     setHimself(saved);
-    setProfile((prev) => (prev ? { ...prev, agent_profile: saved } : prev));
+    setProfile((prev) => (prev ? {
+      ...prev,
+      agent_profile: parsed.bag,
+      industry: (row.industry as string | null) ?? industryDbValue(currentIndustry),
+    } : prev));
   }
 
   const [clientId, setClientId] = useState<string | null>(null);
@@ -395,13 +414,15 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  async function refreshRecentSessions(limit = 3) {
+  async function refreshRecentSessions(limit = 3, forIndustry: Industry = industry) {
     if (!profile) return;
+    const industryKey = forIndustry === "Property" ? "Property" : "FP";
     const [{ data: ended }, { count }, { data: endedDates }] = await Promise.all([
       supabase
         .from("conversations")
         .select("*")
         .eq("user_id", profile.id)
+        .eq("industry", industryKey)
         .not("ended_at", "is", null)
         .order("ended_at", { ascending: false })
         .limit(limit),
@@ -409,11 +430,13 @@ export default function App() {
         .from("conversations")
         .select("*", { count: "exact", head: true })
         .eq("user_id", profile.id)
+        .eq("industry", industryKey)
         .not("ended_at", "is", null),
       supabase
         .from("conversations")
         .select("ended_at")
         .eq("user_id", profile.id)
+        .eq("industry", industryKey)
         .not("ended_at", "is", null)
         .order("ended_at", { ascending: false })
         .limit(400),
@@ -612,31 +635,51 @@ export default function App() {
 
   async function switchIndustry(ind: string) {
     if (!ENABLE_FINANCIAL_PLANNING && ind !== "Property") return;
-    const nextIndustry: Industry = ind === "Property" ? "Property" : "FP";
+    const currentIndustry = industryRef.current;
+    const nextIndustry: Industry = normalizeIndustry(ind === "Property" ? "Property" : "FP");
+    if (nextIndustry === currentIndustry) return;
+
+    // Keep each workspace's agent profile separate (WhatsApp-style accounts).
+    const currentHimself = himselfRef.current;
+    const bagWithCurrent = putWorkspaceProfile(workspaceBagRef.current, currentIndustry, currentHimself);
+    const nextHimself =
+      bagWithCurrent[nextIndustry] ||
+      defaultProfileForIndustry(nextIndustry, currentHimself);
+    const nextBag = putWorkspaceProfile(bagWithCurrent, nextIndustry, nextHimself);
+
+    setWorkspaceBag(nextBag);
     setIndustry(nextIndustry);
+    setHimself(nextHimself);
     setClientId(null);
     setRandomClient(null);
     setAimKey(null);
     setChallenge(null);
-    const updatedHimself = {
-      ...himself,
-      occupation: ind === "Property" ? "Property Agent" : "Financial Advisor",
-      certification: ind === "Property" ? CERTIFICATIONS[0] : CERTIFICATIONS[1],
-    };
-    setHimself(updatedHimself);
+    setStep("setup");
+    setDisplayMessages([]);
+    setApiMessages([]);
+    setConversationId(null);
+    setDebriefOpen(false);
+    setSidebarOpen(false);
+    // Land on that profession's main dashboard after switching.
+    goHome();
+
+    await refreshRecentSessions(3, nextIndustry);
+
     if (profile) {
-      const dbValue = ind === "Property" ? "Property" : "Financial Planning";
+      const dbValue = industryDbValue(nextIndustry);
       try {
         const row = await saveProfileFields(profile.id, {
           industry: dbValue,
-          agent_profile: updatedHimself,
+          agent_profile: nextBag,
         });
+        const parsed = parseAgentWorkspaces(row.agent_profile ?? nextBag, nextIndustry);
+        setWorkspaceBag(parsed.bag);
+        if (parsed.current) setHimself(parsed.current);
         setProfile((prev) => (prev ? {
           ...prev,
           industry: (row.industry as string | null) ?? dbValue,
-          agent_profile: (row.agent_profile as AgentProfile | null) ?? updatedHimself,
+          agent_profile: parsed.bag,
         } : prev));
-        if (row.agent_profile) setHimself(row.agent_profile as AgentProfile);
       } catch (err) {
         console.error("Failed to save industry:", err instanceof Error ? err.message : String(err));
       }
@@ -977,7 +1020,7 @@ export default function App() {
   // Google (and any incomplete profile) must complete setup once
   const needsProfileSetup = practicePack === "education"
     ? !isEducationProfileComplete(profile.agent_profile)
-    : !isPropertyProfileComplete(profile.agent_profile);
+    : !hasUsableAgentProfile(profile.agent_profile);
   if (needsProfileSetup) {
     return (
       <>
@@ -990,6 +1033,7 @@ export default function App() {
           practicePack={practicePack}
           openChatCount={0}
           onSave={persistAgentProfile}
+          onIndustryChange={switchIndustry}
           onBack={goHome}
           onComplete={() => navigate(appPath(), { replace: true })}
           onSignOut={() => supabase.auth.signOut()}
@@ -1025,6 +1069,7 @@ export default function App() {
         <SessionHistory
           profile={profile}
           scope="mine"
+          industry={industry}
           onBack={goHome}
           onSignOut={() => supabase.auth.signOut()}
           onContinue={async (conv) => {
@@ -1041,11 +1086,13 @@ export default function App() {
         <ResponsiveStyles />
         <ProfileScreen
           profile={profile}
-          himself={profile?.agent_profile || himself}
+          himself={himself}
           himselfLoaded={himselfLoaded}
           practicePack={practicePack}
-          openChatCount={openConversations.length}
+          industry={industry}
+          openChatCount={openConversations.filter((c) => normalizeIndustry(c.industry) === industry).length}
           onSave={persistAgentProfile}
+          onIndustryChange={switchIndustry}
           onBack={goHome}
           onSignOut={() => supabase.auth.signOut()}
         />
@@ -1064,9 +1111,12 @@ export default function App() {
       <div className={`arena-backdrop${sidebarOpen ? " open" : ""}`} onClick={() => setSidebarOpen(false)} />
       <div className={`arena-sidebar${sidebarOpen ? " open" : ""}`}>
         <Sidebar
-          openConversations={openConversations}
+          openConversations={openConversations.filter(
+            (c) => normalizeIndustry(c.industry) === industry
+          )}
           activeId={conversationId}
           profile={profile}
+          industry={industry}
           onSelect={(conv) => {
             const fullConversation = openConversations.find((item) => item.id === conv.id);
             if (fullConversation) loadConversationIntoState(fullConversation);
@@ -1103,7 +1153,6 @@ export default function App() {
             practiceHeadline={packContent.practiceHeadline}
             counterpartyLabel={packContent.counterpartyLabel}
             industry={industry}
-            switchIndustry={switchIndustry}
             himself={himself}
             onEditProfile={goProfile}
             industryPersonas={industryPersonas}

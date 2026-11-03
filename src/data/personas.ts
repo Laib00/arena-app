@@ -1,8 +1,8 @@
 import { NATIONALITIES, EDU_LEVELS } from "../constants";
 import type { Aim, Challenge, Grade, Industry, Persona, Setting } from "../types/domain";
 
-/** Phase 1 focus: Property only. Set true later to show FP again. */
-const ENABLE_FINANCIAL_PLANNING = false;
+/** Property + Financial Planning are both available. */
+const ENABLE_FINANCIAL_PLANNING = true;
 const SETTINGS: Setting[] = [
   { key: "Canvassing", desc: "This is a cold, unplanned encounter — the agent is reaching out or crossing paths with you (e.g. door-knocking, cold call, or bumping into you) with no prior relationship or appointment. You were not expecting this conversation." },
   { key: "First Appointment (Online-preceded)", desc: "You already exchanged messages or spoke briefly online (e.g. WhatsApp, a lead form, social media) before this. This is your first real conversation/meeting, so there's a little familiarity already, but you haven't properly met in person yet." },
@@ -191,7 +191,111 @@ Open up gradually only when the agent uses relevant, patient discovery questions
 You are knowledgeable and ask detailed, occasionally confrontational questions to test whether the agent truly understands the market and process.
 Notice bluffing or vague claims. Respect accurate answers, transparent uncertainty, and commitments to verify facts.`,
   },
+  // --- Financial Planning ---
+  {
+    id: "fp_premium_objection",
+    label: "Premium too expensive",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Premium / fee sensitivity:
+You are worried about affordability of premiums or advisory fees relative to your cash flow.
+Raise cost concerns early and keep returning to "can I really afford this?" unless the advisor clearly ties cost to protection, trade-offs, or a staged plan.`,
+  },
+  {
+    id: "fp_already_covered",
+    label: "I already have coverage",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Existing coverage objection:
+You believe you are already adequately insured or invested and resist buying more.
+State early that you already have policies/products. Challenge the advisor to show a real gap with questions, not product pitch.`,
+  },
+  {
+    id: "fp_diy_investing",
+    label: "I'll DIY / use a robo",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — DIY or robo preference:
+You prefer managing money yourself or through a low-cost app and doubt a human advisor adds enough value.
+Bring this up early. Ask what an advisor does that DIY cannot. Stay skeptical of vague "peace of mind" claims.`,
+  },
+  {
+    id: "fp_guaranteed_returns",
+    label: "Want guaranteed returns",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Demand for guaranteed high returns:
+You want strong upside with little or no downside and push for guarantees.
+Ask for certainty early. If the advisor refuses guarantees, keep probing for "some assurance" without easily accepting a balanced risk explanation.`,
+  },
+  {
+    id: "fp_distrust_commission",
+    label: "Distrust of commission",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Commission / conflict suspicion:
+You worry the recommendation is driven by commission, not your needs.
+Ask early how the advisor is paid and whether a cheaper or simpler option exists. Stay alert to defensiveness or vague answers.`,
+  },
+  {
+    id: "fp_spouse_money",
+    label: "Spouse money disagreement",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Household money conflict:
+Your spouse or partner disagrees on risk, spending, or whether to buy protection/invest.
+Make clear that you cannot decide alone. Look for the advisor to surface both views and suggest a joint next step.`,
+  },
+  {
+    id: "fp_product_confusion",
+    label: "Confused by products",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Product complexity:
+ILPs, endowment, term, whole life, and investment jargon overwhelm you.
+Show confusion quickly when products are named. Reward plain-language explanations and a clear recommended next step; shut down if explanations stay dense.`,
+  },
+  {
+    id: "fp_surrender_pressure",
+    label: "Considering surrender",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Thinking of surrendering an old policy:
+You are unhappy with an existing plan and considering cancelling it, possibly to buy something new.
+Raise this early. Test whether the advisor explores consequences and alternatives before pushing a replacement sale.`,
+  },
+  {
+    id: "fp_rejection",
+    label: "Rejection",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Rejection / disengagement:
+You are inclined to end the conversation if the advisor feels pushy, vague, or salesy.
+Show reluctance from the opening with short answers and "not sure I need this." Escalate toward leaving if they don't earn relevance quickly.`,
+  },
+  {
+    id: "fp_ask_commitment",
+    label: "Ask for commitment",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Commitment hesitation:
+You will keep talking but resist committing to an application, fact-find follow-up, or next meeting.
+State early that you are not ready to commit. When asked for a next step, defer or set soft conditions while staying in character.`,
+  },
+  {
+    id: "fp_bad_advisor_trust",
+    label: "Trust after a bad advisor",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Rebuilding trust after a bad advisor:
+A previous advisor mis-sold, churned, or disappeared after the sale.
+Mention this early and stay guarded until the advisor shows transparency, listening, and clear incentives.`,
+  },
+  {
+    id: "fp_competing_advisors",
+    label: "Comparing advisors",
+    industry: "FP",
+    promptHint: `TARGETED FOCUS — Comparing multiple advisors:
+You are speaking with several advisors and see little difference so far.
+Ask why this advisor deserves your business. Resist vague claims; look for a specific, credible value proposition.`,
+  },
 ];
+
+function challengesForIndustry(industry: Industry): Challenge[] {
+  return CHALLENGES.filter((c) => {
+    const scope = c.industry ?? "Property";
+    return scope === "both" || scope === industry;
+  });
+}
 
 // id, grade, name, age, occupation, nationality, edu, disc, badExp, badExpReason, needLevel, lifeStage, field1, field2, field3, notes
 const PROPERTY_PERSONAS = [
@@ -414,6 +518,7 @@ export {
   FP_AIMS,
   FIELD_LABELS,
   CHALLENGES,
+  challengesForIndustry,
   PROPERTY_PERSONAS,
   FP_PERSONAS,
   toPersonaObj,

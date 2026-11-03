@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { X, Users, Trash2, LogOut } from "lucide-react";
 import { NAVY, GOLD } from "../theme";
+import { industryLabel } from "../agentWorkspaces";
 import GradeBadge from "./GradeBadge";
-import type { OpenConversation, UserProfile } from "../types/domain";
+import type { Industry, OpenConversation, UserProfile } from "../types/domain";
 
 type SidebarProps = {
   openConversations: OpenConversation[];
   activeId: string | null;
   profile: UserProfile | null;
+  industry?: Industry;
   onSelect: (conversation: OpenConversation) => void;
   onCloseChat: (id: string) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
@@ -23,6 +25,7 @@ export default function Sidebar({
   openConversations,
   activeId,
   profile,
+  industry = "Property",
   onSelect,
   onCloseChat,
   onDelete,
@@ -86,7 +89,7 @@ export default function Sidebar({
       </div>
 
       <div style={{ padding: "0 16px 8px", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 0.6, flexShrink: 0 }}>
-        Open Chats
+        Open Chats · {industryLabel(industry)}
       </div>
       <div className="arena-sidebar-chats">
         {openConversations.length === 0 ? (

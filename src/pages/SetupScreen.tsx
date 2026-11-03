@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NAVY, GOLD, CREAM, GRADE_COLOR } from "../theme";
-import { GRADE_ORDER } from "../data/personas";
+import { GRADE_ORDER, challengesForIndustry } from "../data/personas";
 import { getLevelProgress } from "../xp";
 import GradeBadge from "../components/GradeBadge";
 import PersonaCard from "../components/PersonaCard";
@@ -301,6 +301,18 @@ const CHALLENGE_BLURBS: Record<string, string> = {
   information_overload: "A first-time client becomes overwhelmed by terminology, paperwork, and decisions.",
   silent_client: "The client gives short, guarded answers and makes discovery difficult.",
   expertise_challenge: "A knowledgeable client asks detailed questions and tests whether the agent will bluff.",
+  fp_premium_objection: "The client pushes back on premiums or fees and keeps asking if they can really afford it.",
+  fp_already_covered: "The client believes they already have enough coverage and resists buying more.",
+  fp_diy_investing: "The client prefers DIY or a robo-advisor and doubts a human advisor adds value.",
+  fp_guaranteed_returns: "The client wants strong upside with little downside and pushes for guarantees.",
+  fp_distrust_commission: "The client suspects recommendations are driven by commission, not their needs.",
+  fp_spouse_money: "A spouse or partner disagrees on risk, spending, or whether to buy protection.",
+  fp_product_confusion: "Product jargon overwhelms the client and they need plain-language clarity.",
+  fp_surrender_pressure: "The client wants to cancel an old policy and may be steered into a replacement.",
+  fp_rejection: "The client grows reluctant and may end the conversation if it feels salesy.",
+  fp_ask_commitment: "The client keeps talking but won't commit to an application or next meeting.",
+  fp_bad_advisor_trust: "A past mis-sale or disappearing advisor has left the client guarded.",
+  fp_competing_advisors: "The client is comparing several advisors and sees little difference yet.",
 };
 
 const CHALLENGE_ICONS: Record<string, LucideIcon> = {
@@ -326,24 +338,32 @@ const CHALLENGE_ICONS: Record<string, LucideIcon> = {
   information_overload: Layers,
   silent_client: MessageCircleOff,
   expertise_challenge: GraduationCap,
+  fp_premium_objection: Tag,
+  fp_already_covered: ShieldCheck,
+  fp_diy_investing: Layers,
+  fp_guaranteed_returns: TrendingUp,
+  fp_distrust_commission: Percent,
+  fp_spouse_money: UsersRound,
+  fp_product_confusion: CircleHelp,
+  fp_surrender_pressure: FileKey,
+  fp_rejection: Shield,
+  fp_ask_commitment: Target,
+  fp_bad_advisor_trust: User,
+  fp_competing_advisors: Users,
 };
 
 type ChallengeSetupModalProps = {
   open: boolean;
   onClose: () => void;
-  challenges: Challenge[];
   counterpartyLabel?: string;
   onSelectChallenge: (challenge: Challenge) => void;
+  industry: string;
 };
 
-function ChallengeSetupModal({
-  open,
-  onClose,
-  challenges,
-  counterpartyLabel = "client",
-  onSelectChallenge,
-}: ChallengeSetupModalProps) {
+function ChallengeSetupModal({ open, onClose, counterpartyLabel = "client", onSelectChallenge, industry }: ChallengeSetupModalProps) {
   if (!open) return null;
+  const industryKey = industry === "Property" ? "Property" : "FP";
+  const challenges = challengesForIndustry(industryKey);
 
   return (
     <div
@@ -418,7 +438,6 @@ type PracticeSetupModalProps = {
   practicePack?: PracticePack;
   counterpartyLabel?: string;
   industry?: string;
-  switchIndustry?: (industry: string) => void | Promise<void>;
   himself: AgentProfile;
   onEditProfile: () => void;
   industryPersonas: Persona[];
@@ -700,7 +719,6 @@ type SetupScreenProps = {
   practiceHeadline?: string;
   counterpartyLabel?: string;
   industry: string;
-  switchIndustry: (industry: string) => void | Promise<void>;
   himself: AgentProfile;
   onEditProfile: () => void;
   industryPersonas: Persona[];
@@ -731,7 +749,7 @@ export default function SetupScreen({
   practicePack = "property",
   practiceHeadline = "What will you practise today?",
   counterpartyLabel = "Client",
-  industry, switchIndustry, himself, onEditProfile, industryPersonas, metPersonaIds,
+  industry, himself, onEditProfile, industryPersonas, metPersonaIds,
   clientId, pickFixedClient, randomClient, generateRandom, aims, aimKey, setAimKey,
   settings, settingKey, setSettingKey,
   challenges, challenge, setChallenge,
@@ -1006,8 +1024,8 @@ export default function SetupScreen({
       <ChallengeSetupModal
         open={challengeModalOpen}
         onClose={() => setChallengeModalOpen(false)}
-        challenges={challenges}
         counterpartyLabel={counterpartyLabel}
+        industry={industry}
         onSelectChallenge={(c) => {
           setChallengeModalOpen(false);
           onStartChallenge?.(c);
@@ -1020,7 +1038,6 @@ export default function SetupScreen({
         practicePack={practicePack}
         counterpartyLabel={counterpartyLabel}
         industry={industry}
-        switchIndustry={switchIndustry}
         himself={himself}
         onEditProfile={onEditProfile}
         industryPersonas={industryPersonas}

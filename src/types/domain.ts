@@ -34,6 +34,8 @@ export interface Challenge {
   promptHint: string;
   /** If set, only shown for these student grades (Education pack). */
   studentGrades?: StudentGrade[];
+  /** Which industry this challenge belongs to. Defaults to Property if omitted. */
+  industry?: Industry | "both";
 }
 
 export interface Persona {

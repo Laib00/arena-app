@@ -36,13 +36,31 @@ export const SALES_STYLES = [
   "Educator / Advisor", "Data-driven / Analytical", "Solution selling",
 ] as const;
 
-export const CERTIFICATIONS = [
+export const PROPERTY_CERTIFICATIONS = [
   "CEA Registered (R Number) — Property",
+  "Newly certified / still completing licensing",
+] as const;
+
+export const FP_CERTIFICATIONS = [
   "CMFAS Papers 1, 5, 9, 9A — Financial Planning (Life Insurance & ILPs)",
   "CMFAS Papers 1, 2, 5 — Financial Planning (General Insurance & Investments)",
   "AWP (Associate Wealth Planner) Certified",
   "Newly certified / still completing licensing",
 ] as const;
+
+/** Full list kept for backwards compatibility with older saved profiles. */
+export const CERTIFICATIONS = [
+  ...PROPERTY_CERTIFICATIONS.filter((c) => c !== "Newly certified / still completing licensing"),
+  ...FP_CERTIFICATIONS,
+] as const;
+
+export function certificationsForIndustry(industry: "Property" | "FP" | "Financial Planning"): readonly string[] {
+  return industry === "Property" ? PROPERTY_CERTIFICATIONS : FP_CERTIFICATIONS;
+}
+
+export function occupationForIndustry(industry: "Property" | "FP" | "Financial Planning"): string {
+  return industry === "Property" ? "Property Agent" : "Financial Advisor";
+}
 
 export const NATIONALITIES = [
   "Singaporean", "Singapore PR (originally Malaysian)", "Singapore PR (originally Chinese national)",
