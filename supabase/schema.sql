@@ -12,7 +12,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
-  role text not null default 'trainee' check (role in ('trainee', 'manager')),
+  role text not null default 'trainee' check (role in ('trainee', 'manager', 'coach')),
   industry text not null default 'Property' check (industry in ('Property', 'Financial Planning')),
   practice_pack text not null default 'property' check (practice_pack in ('property', 'education')),
   created_at timestamptz not null default now()
