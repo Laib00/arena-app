@@ -3,6 +3,7 @@ import { X, ArrowRight, Sparkles } from "lucide-react";
 import { DISC } from "./constants";
 import { buildEvalPrompt } from "./prompts";
 import { NAVY, ACCENT as GOLD } from "./theme";
+import { formatAiText } from "./formatAiText";
 import type { AgentProfile, Aim, ChatMessage, Persona, Setting } from "./types/domain";
 
 type EvalSections = Record<string, string>;
@@ -73,7 +74,7 @@ Speak entirely in first person as ${client.name}. Review the transcript and pick
 - Quote or paraphrase what the candidate said/did
 - Say how you felt / what you thought as the interviewer (e.g. unclear, impressive, vague, prepared, nervous)
 
-Do NOT coach the candidate. Do NOT say what they should do next. Do NOT use section labels like STRENGTHS or OVERALL. Plain conversational language only. Under 250 words.`;
+Do NOT coach the candidate. Do NOT say what they should do next. Do NOT use section labels like STRENGTHS or OVERALL. Plain conversational language only. Under 250 words. Do not use markdown or asterisks for bold/italic (no ** or *).`;
   }
 
   return `You are roleplaying as the client "${client.name}" from a sales practice session — not as a coach or trainer.
@@ -87,7 +88,7 @@ Speak entirely in first person as ${client.name}. Review the transcript and pick
 - Quote or paraphrase what the agent said/did
 - Say how you felt and why (e.g. pressured, respected, confused, trusted, dismissed)
 
-Do NOT coach the agent. Do NOT say what they should do next. Do NOT use section labels like STRENGTHS or OVERALL. Plain conversational language only. Under 250 words.`;
+Do NOT coach the agent. Do NOT say what they should do next. Do NOT use section labels like STRENGTHS or OVERALL. Plain conversational language only. Under 250 words. Do not use markdown or asterisks for bold/italic (no ** or *).`;
 }
 
 export function buildFactsPrompt(
@@ -105,13 +106,13 @@ Trainee: ${himself.name}. ${other} persona: ${client.name} (grade ${client.grade
 From the transcript, produce plain-text observations with approximate numbers where possible. Use these exact labels on their own lines:
 TALK RATIO
 KEY BEHAVIOURS OBSERVED
-OTHER MEASUREMENTS
 
 Rules:
-- Facts and counts only (e.g. "${trainee} spoke in roughly 65% of turns", "${trainee} asked 4 questions", "${other} interrupted twice").
+- Facts and counts only (e.g. "${trainee} spoke in roughly 65% of turns", "${trainee} asked 4 questions").
+- Do not report interruptions — text chat cannot measure cut-ins reliably.
 - No recommendations. No praise. No criticism framed as coaching.
 - Do not report tone, vocal energy, pitch, volume, speaking rate, or pace — those cannot be measured from a text transcript.
-- If something cannot be measured from the transcript, say "Not enough data".
+- Put all countable transcript observations under KEY BEHAVIOURS OBSERVED; do not add a third section.
 - Under 200 words. No markdown.`;
 }
 
@@ -511,7 +512,7 @@ export default function SessionDebrief({
               </div>
             ) : (
               <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
-                {clientFeedback}
+                {formatAiText(clientFeedback)}
               </div>
             )}
             <button
@@ -551,7 +552,7 @@ export default function SessionDebrief({
               </div>
             ) : (
               <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
-                {facts}
+                {formatAiText(facts)}
               </div>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -581,7 +582,7 @@ export default function SessionDebrief({
               </div>
             ) : (
               <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
-                {suggestions}
+                {formatAiText(suggestions)}
               </div>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { ReflectionAnswersView } from "../SessionDebrief";
+import { formatAiText } from "../formatAiText";
 import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
 import GradeBadge from "../components/GradeBadge";
 import PageHeader from "../components/PageHeader";
@@ -208,7 +209,7 @@ export default function SessionHistory({
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Client feedback</div>
               {detail.report?.client_feedback ? (
                 <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {String(detail.report.client_feedback)}
+                  {formatAiText(String(detail.report.client_feedback))}
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No client feedback for this session.</div>
@@ -220,7 +221,7 @@ export default function SessionHistory({
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Session facts</div>
               {detail.report?.facts ? (
                 <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {String(detail.report.facts)}
+                  {formatAiText(String(detail.report.facts))}
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
@@ -234,7 +235,7 @@ export default function SessionHistory({
                       detail.report?.[f] ? (
                         <div key={f} style={{ marginBottom: 12 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>{f.replace(/_/g, " ")}</div>
-                          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{String(detail.report[f])}</div>
+                          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{formatAiText(String(detail.report[f]))}</div>
                         </div>
                       ) : null
                     )}

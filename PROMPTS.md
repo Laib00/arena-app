@@ -132,15 +132,13 @@ Trainee: {himself.name}. Client persona: {client.name} (grade {client.grade}, DI
 
 From the transcript, produce plain-text observations with approximate numbers where possible. Use these exact labels on their own lines:
 TALK RATIO
-TONE / ENERGY
-PACE
 KEY BEHAVIOURS OBSERVED
-OTHER MEASUREMENTS
 
 Rules:
-- Facts and counts only (e.g. "Agent spoke in roughly 65% of turns", "Agent asked 4 questions", "Client interrupted twice").
+- Facts and counts only (e.g. "Agent spoke in roughly 65% of turns", "Agent asked 4 questions"). Do not report interruptions in text sessions.
 - No recommendations. No praise. No criticism framed as coaching.
-- If something cannot be measured from the transcript, say "Not enough data".
+- Do not report tone, vocal energy, pitch, volume, speaking rate, or pace — not measurable from a text transcript.
+- Put all countable transcript observations under KEY BEHAVIOURS OBSERVED; do not add a third section.
 - Under 200 words. No markdown.
 ```
 
@@ -161,14 +159,6 @@ Trainee reflection (for context only — do not coach from it):
 TALK RATIO  
 - Agent turns: 5 / Total turns: 10 → 50% agent, 50% client.  
 
-TONE / ENERGY  
-- Agent tone described as assertive, high‑energy, agenda‑driven.  
-- Client tone described as direct, low‑energy, demanding concise facts.  
-
-PACE  
-- Agent delivered an average of 2–3 statements per turn, consistently advancing to next step.  
-- Client responses averaged 1 statement per turn.  
-
 KEY BEHAVIOURS OBSERVED  
 - Agent used directive language (“Let’s get straight to business,” “Follow me”).  
 - Agent asked 6 distinct questions.  
@@ -176,11 +166,8 @@ KEY BEHAVIOURS OBSERVED
 - Agent confirmed no broker commission.  
 - Agent provided full address and key‑logging proof of availability.  
 - Client asked 4 specific questions, repeatedly demanded concise information, and rejected non‑essential discussion.  
-
-OTHER MEASUREMENTS  
 - Agent scheduled a viewing for the same day.  
-- Agent gave a 20‑minute walk‑through proposal, later replaced with direct Guard House meeting.  
-- No client interruptions recorded.
+- Agent gave a 20‑minute walk‑through proposal, later replaced with direct Guard House meeting.
 ```
 
 ---
