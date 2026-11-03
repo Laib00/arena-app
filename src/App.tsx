@@ -650,12 +650,17 @@ export default function App() {
     setHimself((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function switchIndustry(ind: string) {
+  async function switchIndustry(ind: string, opts?: { navigateHome?: boolean }) {
     if (practicePack === "education") return;
     if (!ENABLE_FINANCIAL_PLANNING && ind !== "Property") return;
+    // Onboarding industry cards pass navigateHome: false so we stay on the details form.
+    const navigateHome = opts?.navigateHome !== false;
     const currentIndustry = industryRef.current;
     const nextIndustry: SalesIndustry = normalizeIndustry(ind === "Property" ? "Property" : "FP");
-    if (nextIndustry === currentIndustry) return;
+    if (nextIndustry === currentIndustry) {
+      if (navigateHome) goHome();
+      return;
+    }
 
     // Keep each workspace's agent profile separate (WhatsApp-style accounts).
     const currentHimself = himselfRef.current;
@@ -678,26 +683,36 @@ export default function App() {
     setConversationId(null);
     setDebriefOpen(false);
     setSidebarOpen(false);
-    // Land on that profession's main dashboard after switching.
-    goHome();
+    if (navigateHome) goHome();
 
     await refreshRecentSessions(3, nextIndustry);
 
     if (profile) {
       const dbValue = industryDbValue(nextIndustry);
       try {
-        const row = await saveProfileFields(profile.id, {
-          industry: dbValue,
-          agent_profile: nextBag,
-        });
-        const parsed = parseAgentWorkspaces(row.agent_profile ?? nextBag, nextIndustry);
-        setWorkspaceBag(parsed.bag);
-        if (parsed.current) setHimself(parsed.current);
-        setProfile((prev) => (prev ? {
-          ...prev,
-          industry: (row.industry as string | null) ?? dbValue,
-          agent_profile: parsed.bag,
-        } : prev));
+        // During onboarding, only persist industry — saving agent_profile early would
+        // mark the profile "complete" (name from signup) and skip the details step.
+        const row = await saveProfileFields(
+          profile.id,
+          navigateHome
+            ? { industry: dbValue, agent_profile: nextBag }
+            : { industry: dbValue }
+        );
+        if (navigateHome) {
+          const parsed = parseAgentWorkspaces(row.agent_profile ?? nextBag, nextIndustry);
+          setWorkspaceBag(parsed.bag);
+          if (parsed.current) setHimself(parsed.current);
+          setProfile((prev) => (prev ? {
+            ...prev,
+            industry: (row.industry as string | null) ?? dbValue,
+            agent_profile: parsed.bag,
+          } : prev));
+        } else {
+          setProfile((prev) => (prev ? {
+            ...prev,
+            industry: (row.industry as string | null) ?? dbValue,
+          } : prev));
+        }
       } catch (err) {
         console.error("Failed to save industry:", err instanceof Error ? err.message : String(err));
       }
@@ -1049,6 +1064,7 @@ export default function App() {
           himself={himself}
           himselfLoaded={himselfLoaded}
           practicePack={practicePack}
+          industry={industry}
           openChatCount={0}
           onSave={persistAgentProfile}
           onIndustryChange={switchIndustry}
