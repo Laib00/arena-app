@@ -27,8 +27,10 @@ import {
   hasUsableAgentProfile,
   industryDbValue,
   normalizeIndustry,
+  isWorkspaceBag,
   parseAgentWorkspaces,
   putWorkspaceProfile,
+  type SalesIndustry,
   type WorkspaceBag,
 } from "./agentWorkspaces";
 import { buildSystemPrompt } from "./prompts";
@@ -100,14 +102,14 @@ export default function App() {
   const [himselfLoaded, setHimselfLoaded] = useState(false);
   const wasOnChatRoute = useRef(false);
   const [step, setStep] = useState<"setup" | "chat">("setup");
-  const [industry, setIndustry] = useState<Industry>("Property");
+  const [industry, setIndustry] = useState<SalesIndustry>("Property");
   const [practicePack, setPracticePack] = useState<PracticePack>("property");
   const [workspaceBag, setWorkspaceBag] = useState<WorkspaceBag>({ version: 1 });
   const [resumeChecked, setResumeChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openConversations, setOpenConversations] = useState<AppConversation[]>([]);
   const [metPersonaIds, setMetPersonaIds] = useState<Set<string>>(new Set());
-  const industryRef = useRef<Industry>("Property");
+  const industryRef = useRef<SalesIndustry>("Property");
   const workspaceBagRef = useRef<WorkspaceBag>({ version: 1 });
   const himselfRef = useRef<AgentProfile>(defaultProfileForIndustry("Property"));
 
@@ -280,24 +282,31 @@ export default function App() {
 
         setPracticePack(pack);
 
-        const ind: Industry = (!ENABLE_FINANCIAL_PLANNING || loadedProfile.industry !== "Financial Planning")
+        const ind: SalesIndustry = (!ENABLE_FINANCIAL_PLANNING || loadedProfile.industry !== "Financial Planning")
           ? "Property"
           : "FP";
         setIndustry(ind);
-        const parsed = parseAgentWorkspaces(loadedProfile.agent_profile, ind);
-        setWorkspaceBag(parsed.bag);
-        if (parsed.current) {
-          setHimself(parsed.current);
-        } else if (pack === "education") {
-          setHimself({
-            ...DEFAULT_EDUCATION_HIMSELF,
-            name: loadedProfile.full_name || "",
-          });
+        if (pack === "education") {
+          // Education keeps a flat student profile (not Property/FP workspace bag).
+          const raw = loadedProfile.agent_profile;
+          const flat = raw && typeof raw === "object" && !isWorkspaceBag(raw)
+            ? (raw as AgentProfile)
+            : null;
+          setWorkspaceBag({ version: 1 });
+          setHimself(flat?.name
+            ? flat
+            : { ...DEFAULT_EDUCATION_HIMSELF, name: loadedProfile.full_name || "" });
         } else {
-          setHimself({
-            ...defaultProfileForIndustry(ind),
-            name: loadedProfile.full_name || "",
-          });
+          const parsed = parseAgentWorkspaces(loadedProfile.agent_profile, ind);
+          setWorkspaceBag(parsed.bag);
+          if (parsed.current) {
+            setHimself(parsed.current);
+          } else {
+            setHimself({
+              ...defaultProfileForIndustry(ind),
+              name: loadedProfile.full_name || "",
+            });
+          }
         }
         setHimselfLoaded(true);
       } catch (e) {
@@ -371,6 +380,14 @@ export default function App() {
 
   async function persistAgentProfile(agentProfile: AgentProfile): Promise<void> {
     if (!profile) throw new Error("Profile not loaded yet.");
+    if (practicePack === "education") {
+      const row = await saveProfileFields(profile.id, { agent_profile: agentProfile });
+      const saved = (row.agent_profile as AgentProfile | null) ?? agentProfile;
+      himselfRef.current = saved;
+      setHimself(saved);
+      setProfile((prev) => (prev ? { ...prev, agent_profile: saved } : prev));
+      return;
+    }
     const currentIndustry = industryRef.current;
     const nextBag = putWorkspaceProfile(workspaceBagRef.current, currentIndustry, agentProfile);
     const row = await saveProfileFields(profile.id, {
@@ -414,7 +431,7 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  async function refreshRecentSessions(limit = 3, forIndustry: Industry = industry) {
+  async function refreshRecentSessions(limit = 3, forIndustry: SalesIndustry = industry) {
     if (!profile) return;
     const industryKey = forIndustry === "Property" ? "Property" : "FP";
     const [{ data: ended }, { count }, { data: endedDates }] = await Promise.all([
@@ -634,9 +651,10 @@ export default function App() {
   }
 
   async function switchIndustry(ind: string) {
+    if (practicePack === "education") return;
     if (!ENABLE_FINANCIAL_PLANNING && ind !== "Property") return;
     const currentIndustry = industryRef.current;
-    const nextIndustry: Industry = normalizeIndustry(ind === "Property" ? "Property" : "FP");
+    const nextIndustry: SalesIndustry = normalizeIndustry(ind === "Property" ? "Property" : "FP");
     if (nextIndustry === currentIndustry) return;
 
     // Keep each workspace's agent profile separate (WhatsApp-style accounts).
@@ -1019,7 +1037,7 @@ export default function App() {
 
   // Google (and any incomplete profile) must complete setup once
   const needsProfileSetup = practicePack === "education"
-    ? !isEducationProfileComplete(profile.agent_profile)
+    ? !isEducationProfileComplete(himself)
     : !hasUsableAgentProfile(profile.agent_profile);
   if (needsProfileSetup) {
     return (

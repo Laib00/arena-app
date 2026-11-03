@@ -563,8 +563,6 @@ export default function Auth() {
                   </SmallField>
                 </div>
               </div>
->>>>>>> 54d67ab (Enable Financial Planning as a separate practice workspace.)
-              </div>
             )}
 
             {error && <ErrorBox>{error}</ErrorBox>}

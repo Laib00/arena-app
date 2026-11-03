@@ -10,10 +10,11 @@ import {
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
 import { STUDENT_GRADE_OPTIONS, TARGET_PATHS, isStudentGrade } from "../data/educationInterview";
 import { packLabel } from "../data/practicePack";
+import { ENABLE_FINANCIAL_PLANNING } from "../data/personas";
 import Field from "../components/Field";
 import PageHeader from "../components/PageHeader";
-import type { AgentProfile, DiscType, Industry, PracticePack, StudentGrade, UserProfile } from "../types/domain";
-import { ENABLE_FINANCIAL_PLANNING } from "../constants";
+import type { AgentProfile, DiscType, PracticePack, StudentGrade, UserProfile } from "../types/domain";
+import type { SalesIndustry } from "../agentWorkspaces";
 
 export default function ProfileScreen({
   profile,
@@ -33,7 +34,7 @@ export default function ProfileScreen({
   himself: AgentProfile;
   himselfLoaded: boolean;
   practicePack?: PracticePack;
-  industry?: Industry;
+  industry?: SalesIndustry;
   openChatCount?: number;
   onSave: (data: AgentProfile) => Promise<void> | void;
   onIndustryChange?: (industry: string) => Promise<void> | void;
@@ -239,7 +240,7 @@ export default function ProfileScreen({
               })}
             </div>
           </div>
-        ) : ENABLE_FINANCIAL_PLANNING && onIndustryChange ? (
+        ) : ENABLE_FINANCIAL_PLANNING && onIndustryChange && !isEducation ? (
           <div style={{ marginBottom: 16, maxWidth: 320 }}>
             <Field label="Switch workspace">
               <select
@@ -265,13 +266,15 @@ export default function ProfileScreen({
           </div>
         ) : (
           <p style={{ fontSize: 13, color: "#6B7280", marginBottom: isOnboarding ? 8 : 16 }}>
-            Workspace: <span style={{ fontWeight: 700, color: NAVY }}>{industryLabel}</span>
+            {isEducation ? "Field" : "Workspace"}:{" "}
+            <span style={{ fontWeight: 700, color: NAVY }}>
+              {isEducation ? packLabel(practicePack) : industryLabel}
+            </span>
           </p>
         )}
         {isOnboarding && (
           <p style={{ fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 16 }}>
             Tell us about yourself so practice sessions can match you.
->>>>>>> 54d67ab (Enable Financial Planning as a separate practice workspace.)
           </p>
         )}
 

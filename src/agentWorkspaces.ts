@@ -1,6 +1,9 @@
 import { certificationsForIndustry, occupationForIndustry } from "./constants";
 import type { AgentProfile, Industry } from "./types/domain";
 
+/** Property / FP workspaces only (Education pack uses a flat student profile). */
+export type SalesIndustry = "Property" | "FP";
+
 /** Persisted shape: one agent profile per practice workspace. */
 export type WorkspaceBag = {
   version: 1;
@@ -14,20 +17,25 @@ export function isWorkspaceBag(value: unknown): value is WorkspaceBag {
   return obj.version === 1 && ("Property" in obj || "FP" in obj);
 }
 
-export function normalizeIndustry(value: unknown): Industry {
+export function toSalesIndustry(value: unknown): SalesIndustry {
   return value === "Property" || value === "property" ? "Property" : "FP";
 }
 
-export function industryDbValue(industry: Industry): "Property" | "Financial Planning" {
+/** @deprecated use toSalesIndustry — kept name for call sites that expect Industry. */
+export function normalizeIndustry(value: unknown): SalesIndustry {
+  return toSalesIndustry(value);
+}
+
+export function industryDbValue(industry: SalesIndustry): "Property" | "Financial Planning" {
   return industry === "Property" ? "Property" : "Financial Planning";
 }
 
-export function industryLabel(industry: Industry): string {
+export function industryLabel(industry: SalesIndustry | Industry): string {
   return industry === "Property" ? "Property" : "Financial Planning";
 }
 
 export function defaultProfileForIndustry(
-  industry: Industry,
+  industry: SalesIndustry,
   from?: AgentProfile | null
 ): AgentProfile {
   return {
@@ -46,7 +54,7 @@ export function defaultProfileForIndustry(
 /** Read legacy flat profile or workspace bag into a bag + active profile. */
 export function parseAgentWorkspaces(
   raw: unknown,
-  industry: Industry
+  industry: SalesIndustry
 ): { bag: WorkspaceBag; current: AgentProfile | null } {
   if (!raw || typeof raw !== "object") {
     return { bag: { version: 1 }, current: null };
@@ -66,7 +74,7 @@ export function parseAgentWorkspaces(
 
 export function putWorkspaceProfile(
   bag: WorkspaceBag,
-  industry: Industry,
+  industry: SalesIndustry,
   profile: AgentProfile
 ): WorkspaceBag {
   return {
