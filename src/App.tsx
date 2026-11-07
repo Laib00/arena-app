@@ -39,12 +39,20 @@ import { saveProfileFields } from "./profileApi";
 import { computePracticeStreak } from "./streak";
 import { sessionHasChallenge, xpForSession } from "./xp";
 import { APP_BASE, appPath } from "./routes";
+import { clearCoachGoogleIntent, hasCoachGoogleIntent } from "./authCoachIntent";
+import {
+  formatRagContextBlock,
+  logConversationRetrievals,
+  retrieveRagChunks,
+  userMessageForRagQuery,
+} from "./rag";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import SetupScreen from "./pages/SetupScreen";
 import ChatScreen from "./pages/ChatScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import SessionHistory from "./pages/SessionHistory";
+import CoachArea from "./coach/CoachArea";
 import type {
   AgentProfile,
   Aim,
@@ -83,6 +91,8 @@ type StartRoleplayOptions = {
   setting: Setting | null;
   challenge?: Challenge | null;
   himself?: AgentProfile;
+  /** When set, conversation and RAG use this library (e.g. replay). */
+  ragLibraryId?: string | null;
 };
 
 type DebriefSections = {
@@ -93,11 +103,18 @@ type DebriefSections = {
   key_recommendation?: string;
 };
 
+/** True when Supabase JWT user_metadata says account_type coach (set at coach signup). */
+function jwtSaysCoach(session: Session | null | undefined): boolean {
+  const raw = session?.user?.user_metadata?.account_type;
+  return typeof raw === "string" && raw.trim().toLowerCase() === "coach";
+}
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = loading, null = logged out
+  const [coachIntentBusy, setCoachIntentBusy] = useState(false);
   const [profile, setProfile] = useState<AppUserProfile | null>(null);
   const [himselfLoaded, setHimselfLoaded] = useState(false);
   const wasOnChatRoute = useRef(false);
@@ -136,6 +153,71 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  /**
+   * Google does not store signInWithOAuth `data` in user_metadata, and the return URL
+   * can lose `?coach_google_intent=1` when we bounce a still-trainee profile off /dashboard/coach.
+   * The signup page sets sessionStorage before the redirect; consume it here.
+   */
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const fromQuery = new URLSearchParams(window.location.search).get("coach_google_intent") === "1";
+    const fromStorage = hasCoachGoogleIntent();
+    if (!fromQuery && !fromStorage) return;
+
+    let cancelled = false;
+    setCoachIntentBusy(true);
+    (async () => {
+      try {
+        const meta = session.user.user_metadata || {};
+        const alreadyCoach =
+          typeof meta.account_type === "string" && meta.account_type.trim().toLowerCase() === "coach";
+        if (!alreadyCoach) {
+          const { error: updErr } = await supabase.auth.updateUser({
+            data: { account_type: "coach", practice_pack: "property" },
+          });
+          if (cancelled) return;
+          if (updErr) {
+            console.error("Coach metadata (Google OAuth) merge failed:", updErr.message);
+            return;
+          }
+        }
+        const { data: rpcRow, error: rpcErr } = await supabase.rpc("ensure_own_profile");
+        if (cancelled) return;
+        if (rpcErr) {
+          console.error("ensure_own_profile after coach merge:", rpcErr.message);
+          return;
+        }
+        const row = Array.isArray(rpcRow) ? rpcRow[0] : rpcRow;
+        if (row && typeof row === "object" && "id" in row) {
+          setProfile(row as AppUserProfile);
+        } else {
+          const { data: fresh } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .maybeSingle();
+          if (fresh) setProfile(fresh as AppUserProfile);
+        }
+        clearCoachGoogleIntent();
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("coach_google_intent")) {
+          url.searchParams.delete("coach_google_intent");
+          window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+        }
+        // Only move off trainee home — do not stomp /dashboard/coach/libraries etc.
+        const pathNorm = window.location.pathname.replace(/\/$/, "") || APP_BASE;
+        if (pathNorm === APP_BASE || pathNorm === `${APP_BASE}/`) {
+          navigate(appPath("/coach"), { replace: true });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!cancelled) setCoachIntentBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, navigate]);
+
   // After Google OAuth, Supabase may land on /dashboard#access_token=... — replace so Back skips the hash URL
   useEffect(() => {
     if (!session) return;
@@ -169,9 +251,42 @@ export default function App() {
 
   const chatMatch = matchPath({ path: `${APP_BASE}/chat/:conversationId`, end: true }, location.pathname);
   const routeConvId = chatMatch?.params?.conversationId || null;
+  const isCoachRoute = Boolean(matchPath({ path: `${APP_BASE}/coach`, end: false }, location.pathname));
   const isHistory = Boolean(matchPath({ path: `${APP_BASE}/history`, end: true }, location.pathname));
   const isProfile = Boolean(matchPath({ path: `${APP_BASE}/profile`, end: true }, location.pathname));
   const isTeam = Boolean(matchPath({ path: `${APP_BASE}/team`, end: true }, location.pathname));
+
+  const coachFromJwt = jwtSaysCoach(session);
+  const coachIntentPending =
+    coachIntentBusy ||
+    hasCoachGoogleIntent() ||
+    searchParams.get("coach_google_intent") === "1";
+  const isCoachUser = profile?.role === "coach" || coachFromJwt;
+
+  useEffect(() => {
+    if (session === undefined || !session || !profile || !isCoachUser) return;
+    const path = location.pathname.replace(/\/$/, "") || APP_BASE;
+    if (path === APP_BASE || path === `${APP_BASE}/`) navigate(appPath("/coach"), { replace: true });
+  }, [session, profile?.id, isCoachUser, location.pathname, navigate]);
+
+  /** JWT says coach but DB still trainee — re-run ensure_own_profile after Supabase SQL fix. */
+  useEffect(() => {
+    if (!session?.user?.id || !profile || profile.role === "coach") return;
+    if (!jwtSaysCoach(session)) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("ensure_own_profile");
+      if (cancelled || error) {
+        if (error) console.error("ensure_own_profile (coach sync):", error.message);
+        return;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row && typeof row === "object" && "role" in row && (row as AppUserProfile).role === "coach") {
+        setProfile(row as AppUserProfile);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, profile?.id, profile?.role, session?.user?.user_metadata?.account_type]);
 
   useEffect(() => {
     if (!session) {
@@ -208,6 +323,8 @@ export default function App() {
               authMetaPack: meta.practice_pack,
               agentProfile: meta.agent_profile as AgentProfile | null | undefined,
             });
+            const coachFromMeta =
+              typeof meta.account_type === "string" && meta.account_type.trim().toLowerCase() === "coach";
             const { data: created, error: insertErr } = await supabase
               .from("profiles")
               .upsert(
@@ -217,6 +334,7 @@ export default function App() {
                   full_name: fullName,
                   industry: "Property",
                   practice_pack: fallbackPack,
+                  ...(coachFromMeta ? { role: "coach" as const } : {}),
                 },
                 { onConflict: "id" }
               )
@@ -243,6 +361,17 @@ export default function App() {
         const loadedProfile = data as AppUserProfile;
         setProfile(loadedProfile);
 
+        const meta = session.user.user_metadata || {};
+
+        if (loadedProfile.role === "coach" || jwtSaysCoach(session)) {
+          setPracticePack("property");
+          setIndustry("Property");
+          setWorkspaceBag({ version: 1 });
+          setHimself(defaultProfileForIndustry("Property"));
+          setHimselfLoaded(true);
+          return;
+        }
+
         let sessionPack: string | null = null;
         try {
           sessionPack = sessionStorage.getItem(PRACTICE_PACK_STORAGE_KEY);
@@ -250,7 +379,6 @@ export default function App() {
           /* ignore */
         }
 
-        const meta = session.user.user_metadata || {};
         let pack = resolvePracticePack({
           dbPack: loadedProfile.practice_pack,
           authMetaPack: meta.practice_pack,
@@ -319,7 +447,7 @@ export default function App() {
     })();
 
     return () => { cancelled = true; };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, session?.user?.user_metadata]);
 
   async function refreshOpenConversations() {
     if (!profile) return;
@@ -431,6 +559,47 @@ export default function App() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  const [enrolledLibraries, setEnrolledLibraries] = useState<{ id: string; title: string }[]>([]);
+  const [selectedRagLibraryId, setSelectedRagLibraryId] = useState<string | null>(null);
+  const [sessionRagLibraryId, setSessionRagLibraryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profile || profile.role === "coach" || profile.role === "manager") return;
+    let cancelled = false;
+    (async () => {
+      const { data: enrolls, error: e1 } = await supabase
+        .from("library_enrollments")
+        .select("library_id")
+        .eq("profile_id", profile.id);
+      if (cancelled || e1) {
+        if (e1) console.warn("library_enrollments:", e1.message);
+        return;
+      }
+      const ids = (enrolls || []).map((r) => r.library_id).filter(Boolean);
+      if (ids.length === 0) {
+        setEnrolledLibraries([]);
+        setSelectedRagLibraryId(null);
+        return;
+      }
+      const { data: libs, error: e2 } = await supabase
+        .from("knowledge_libraries")
+        .select("id, title, status")
+        .in("id", ids)
+        .eq("status", "active");
+      if (cancelled || e2) {
+        if (e2) console.warn("knowledge_libraries:", e2.message);
+        return;
+      }
+      const list = (libs || []).map((l) => ({ id: l.id, title: String(l.title || "Library") }));
+      setEnrolledLibraries(list);
+      setSelectedRagLibraryId((prev) => {
+        if (prev && list.some((l) => l.id === prev)) return prev;
+        return list.length === 1 ? list[0].id : null;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.role]);
+
   async function refreshRecentSessions(limit = 3, forIndustry: SalesIndustry = industry) {
     if (!profile) return;
     const industryKey = forIndustry === "Property" ? "Property" : "FP";
@@ -516,7 +685,7 @@ export default function App() {
     if (!profile) return;
     const { data: pending, error } = await supabase
       .from("conversations")
-      .select("id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
+      .select("id, user_id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
       .eq("user_id", profile.id)
       .not("ended_at", "is", null)
       .is("xp_awarded", null)
@@ -547,6 +716,9 @@ export default function App() {
     { syncUrl = true }: { syncUrl?: boolean } = {}
   ) {
     if (!conv || !conv.client_snapshot) return;
+
+    const rag = (conv as { rag_library_id?: string | null }).rag_library_id ?? null;
+    setSessionRagLibraryId(rag);
 
     const { data: pastMessages } = await supabase
       .from("messages")
@@ -725,8 +897,16 @@ export default function App() {
     setting: startSetting,
     challenge: startChallenge = null,
     himself: startHimself = himself,
+    ragLibraryId: explicitRagId = undefined,
   }: StartRoleplayOptions) {
     if (!session || !startClient || !startAim || !startSetting) return;
+    const ragId =
+      explicitRagId !== undefined
+        ? explicitRagId
+        : profile?.role !== "coach" && profile?.role !== "manager"
+          ? selectedRagLibraryId
+          : null;
+    setSessionRagLibraryId(ragId);
     setError(null);
     setLoading(true);
     setStep("chat");
@@ -751,6 +931,7 @@ export default function App() {
         aim_snapshot: startAim,
         setting_snapshot: startSetting,
         challenge_snapshot: startChallenge,
+        ...(ragId ? { rag_library_id: ragId } : {}),
       };
       const { data, error: dbErr } = await supabase
         .from("conversations")
@@ -783,6 +964,7 @@ export default function App() {
               client_snapshot: { ...startClient, _challenge: startChallenge },
               aim_snapshot: startAim,
               setting_snapshot: startSetting,
+              ...(ragId ? { rag_library_id: ragId } : {}),
             })
             .select()
             .single();
@@ -799,11 +981,26 @@ export default function App() {
       }
     }
 
-    const systemPrompt = buildSystemPrompt(startHimself, startClient, startAim, startSetting, startChallenge);
-    const seed: ChatMessage = { role: "user", content: "(The roleplay is beginning now. Open the conversation yourself, in character, exactly as instructed in your system prompt.)" };
+    let systemPrompt = buildSystemPrompt(startHimself, startClient, startAim, startSetting, startChallenge);
+    const seedText =
+      "(The roleplay is beginning now. Open the conversation yourself, in character, exactly as instructed in your system prompt.)";
+    const seedForApi: ChatMessage = {
+      role: "user",
+      content: ragId
+        ? userMessageForRagQuery(seedText)
+        : seedText,
+    };
     try {
-      const reply = await callGemini(systemPrompt, [seed]);
-      setApiMessages([seed, { role: "assistant", content: reply }]);
+      if (ragId && newConversationId && profile?.role !== "coach") {
+        const matches = await retrieveRagChunks(supabase, ragId, seedText, 8);
+        if (matches.length) {
+          systemPrompt =
+            formatRagContextBlock(matches) + systemPrompt;
+          await logConversationRetrievals(supabase, newConversationId, seedText, matches);
+        }
+      }
+      const reply = await callGemini(systemPrompt, [seedForApi]);
+      setApiMessages([seedForApi, { role: "assistant", content: reply }]);
       setDisplayMessages([{ role: "assistant", content: reply }]);
       if (newConversationId) saveMessage(newConversationId, "client", reply);
     } catch (e) {
@@ -848,12 +1045,15 @@ export default function App() {
     const ch = conv.challenge_snapshot || conv.client_snapshot?._challenge || null;
     const clientSnap = { ...conv.client_snapshot };
     delete clientSnap._challenge;
+    const replayRagId =
+      typeof conv.rag_library_id === "string" ? conv.rag_library_id : null;
     await startRoleplayWith({
       client: clientSnap,
       aim: replayAim,
       setting: replaySetting,
       challenge: ch,
       himself: conv.himself_snapshot || himself,
+      ragLibraryId: replayRagId,
     });
   }
 
@@ -870,15 +1070,29 @@ export default function App() {
     if (!text || loading) return;
     setInput("");
     setError(null);
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const newApiMessages = [...apiMessages, userMsg];
+    const userMsgDisplay: ChatMessage = { role: "user", content: text };
+    const useRag =
+      Boolean(sessionRagLibraryId && conversationId) &&
+      profile?.role !== "coach" &&
+      profile?.role !== "manager";
+    const userMsgForModel: ChatMessage = useRag
+      ? { role: "user", content: userMessageForRagQuery(text) }
+      : userMsgDisplay;
+    const newApiMessages = [...apiMessages, userMsgForModel];
     setApiMessages(newApiMessages);
-    setDisplayMessages((prev) => [...prev, userMsg]);
+    setDisplayMessages((prev) => [...prev, userMsgDisplay]);
     if (conversationId) saveMessage(conversationId, "agent", text);
     setLoading(true);
     try {
       if (!client || !aim || !setting) throw new Error("Roleplay setup is incomplete.");
-      const systemPrompt = buildSystemPrompt(himself, client, aim, setting, challenge);
+      let systemPrompt = buildSystemPrompt(himself, client, aim, setting, challenge);
+      if (useRag && sessionRagLibraryId && conversationId) {
+        const matches = await retrieveRagChunks(supabase, sessionRagLibraryId, text, 8);
+        if (matches.length) {
+          systemPrompt = formatRagContextBlock(matches) + systemPrompt;
+          await logConversationRetrievals(supabase, conversationId, text, matches);
+        }
+      }
       const reply = await callGemini(systemPrompt, newApiMessages);
       setApiMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setDisplayMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -930,7 +1144,7 @@ export default function App() {
 
     const { data: endedConv } = await supabase
       .from("conversations")
-      .select("id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
+      .select("id, user_id, client_grade, challenge_snapshot, client_snapshot, xp_awarded")
       .eq("id", convId)
       .maybeSingle();
 
@@ -956,6 +1170,7 @@ export default function App() {
     setError(null);
     setConversationId(null);
     setChallenge(null);
+    setSessionRagLibraryId(null);
     refreshRecentSessions();
     goHome();
   }
@@ -1000,6 +1215,7 @@ export default function App() {
         setDebriefOpen(false);
         setChallenge(null);
         setError(null);
+        setSessionRagLibraryId(null);
       }
     }
   }, [routeConvId, resumeChecked, profile?.id]);
@@ -1051,9 +1267,12 @@ export default function App() {
   }
 
   // Google (and any incomplete profile) must complete setup once
-  const needsProfileSetup = practicePack === "education"
-    ? !isEducationProfileComplete(himself)
-    : !hasUsableAgentProfile(profile.agent_profile);
+  const needsProfileSetup =
+    !isCoachUser &&
+    !coachIntentPending &&
+    (practicePack === "education"
+      ? !isEducationProfileComplete(himself)
+      : !hasUsableAgentProfile(profile.agent_profile));
   if (needsProfileSetup) {
     return (
       <>
@@ -1073,6 +1292,23 @@ export default function App() {
           onSignOut={() => supabase.auth.signOut()}
         />
       </>
+    );
+  }
+
+  if (coachIntentPending && !isCoachUser) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: CREAM, color: NAVY, fontFamily: "-apple-system, sans-serif" }}>
+        Setting up your coach account...
+      </div>
+    );
+  }
+
+  if (isCoachRoute) {
+    if (!isCoachUser) {
+      return <Navigate to={appPath()} replace />;
+    }
+    return (
+      <CoachArea profileId={profile.id} fullName={profile.full_name} onSignOut={() => supabase.auth.signOut()} />
     );
   }
 
@@ -1135,7 +1371,13 @@ export default function App() {
   }
 
   // Unknown /dashboard/* paths → home
-  if (!chatMatch && location.pathname !== APP_BASE && location.pathname !== `${APP_BASE}/`) {
+  if (
+    !chatMatch &&
+    location.pathname !== APP_BASE &&
+    location.pathname !== `${APP_BASE}/` &&
+    !isCoachRoute &&
+    !location.pathname.startsWith(`${APP_BASE}/coach/`)
+  ) {
     return <Navigate to={appPath()} replace />;
   }
 
@@ -1211,6 +1453,11 @@ export default function App() {
             onReplay={replaySession}
             onExpandReplayList={expandReplayList}
             onViewHistory={goHistory}
+            ragLibraries={
+              profile?.role !== "coach" && profile?.role !== "manager" ? enrolledLibraries : []
+            }
+            selectedRagLibraryId={selectedRagLibraryId}
+            onRagLibraryChange={setSelectedRagLibraryId}
           />
         ) : (
           <ChatScreen

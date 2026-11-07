@@ -14,6 +14,8 @@ export const LEVELS = [
   { level: 10, title: "Arena Master", xpRequired: 32000 },
 ] as const;
 
+type LevelRow = (typeof LEVELS)[number];
+
 export const XP_BASE = 25;
 export const XP_CHALLENGE_BONUS = 15;
 export const XP_HARD_BONUS = 15;
@@ -54,7 +56,7 @@ export type LevelProgress = {
 
 export function getLevelProgress(totalXp: number): LevelProgress {
   const xp = Math.max(0, Math.floor(Number(totalXp) || 0));
-  let current = LEVELS[0];
+  let current: LevelRow = LEVELS[0];
   for (const row of LEVELS) {
     if (xp >= row.xpRequired) current = row;
     else break;

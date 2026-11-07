@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import App from "./App";
+import Auth from "./Auth";
 import LandingPage from "./landing/LandingPage";
 import { APP_BASE, appPath } from "./routes";
 
@@ -22,6 +23,7 @@ ReactDOM.createRoot(rootEl).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/signup/coach" element={<Auth variant="coach-signup" />} />
         <Route path={`${APP_BASE}/*`} element={<App />} />
         <Route path="/app/*" element={<LegacyAppRedirect />} />
         <Route path="/login" element={<Navigate to={appPath()} replace />} />

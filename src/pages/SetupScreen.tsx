@@ -714,6 +714,8 @@ type RecentSessions = {
   xp: number;
 };
 
+type RagLibraryOption = { id: string; title: string };
+
 type SetupScreenProps = {
   practicePack?: PracticePack;
   practiceHeadline?: string;
@@ -743,6 +745,10 @@ type SetupScreenProps = {
   onReplay?: (session: ConversationSession) => void | Promise<void>;
   onExpandReplayList?: () => void | Promise<void>;
   onViewHistory: () => void;
+  /** Active enrolled coach libraries — trainee practice RAG (optional). */
+  ragLibraries?: RagLibraryOption[];
+  selectedRagLibraryId?: string | null;
+  onRagLibraryChange?: (id: string | null) => void;
 };
 
 export default function SetupScreen({
@@ -754,6 +760,9 @@ export default function SetupScreen({
   settings, settingKey, setSettingKey,
   challenges, challenge, setChallenge,
   canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onExpandReplayList, onViewHistory,
+  ragLibraries = [],
+  selectedRagLibraryId = null,
+  onRagLibraryChange,
 }: SetupScreenProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
@@ -845,6 +854,56 @@ export default function SetupScreen({
           </div>
         </div>
       </header>
+
+      {ragLibraries.length > 0 && onRagLibraryChange && (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: "14px 18px",
+            background: "#fff",
+            border: "1px solid #E8E4DC",
+            borderRadius: 14,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 12,
+            maxWidth: 520,
+          }}
+        >
+          <label
+            htmlFor="arena-rag-library"
+            style={{ fontSize: 13, fontWeight: 600, color: NAVY, flex: "1 1 200px" }}
+          >
+            Coach knowledge (optional)
+          </label>
+          <select
+            id="arena-rag-library"
+            value={selectedRagLibraryId ?? ""}
+            onChange={(e) => onRagLibraryChange(e.target.value || null)}
+            style={{
+              flex: "1 1 220px",
+              minWidth: 180,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #E2DFD6",
+              fontSize: 14,
+              color: NAVY,
+              background: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            <option value="">None</option>
+            {ragLibraries.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.title}
+              </option>
+            ))}
+          </select>
+          <p style={{ margin: 0, flex: "1 1 100%", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
+            When selected, the AI client can draw on short snippets from your enrolled library (after your coach has embedded chunks).
+          </p>
+        </div>
+      )}
 
       <div
         style={{

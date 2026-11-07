@@ -14,7 +14,9 @@ create or replace function public.protect_role_column()
 returns trigger as $$
 begin
   if new.role is distinct from old.role then
-    new.role := old.role;
+    if coalesce(current_setting('arena.allow_profile_role_sync', true), '') <> '1' then
+      new.role := old.role;
+    end if;
   end if;
   return new;
 end;

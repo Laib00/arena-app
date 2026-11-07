@@ -1,10 +1,19 @@
 import React, { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { ENABLE_EDUCATION_PACK, PRACTICE_PACK_STORAGE_KEY } from "./data/practicePack";
 import { NAVY, ACCENT as GOLD, CREAM } from "./theme";
 import type { PracticePack } from "./types/domain";
+import { appPath } from "./routes";
+import { clearCoachGoogleIntent, markCoachGoogleIntent } from "./authCoachIntent";
+
+export type AuthVariant = "trainee" | "coach-signup";
+
+type AuthProps = {
+  /** `coach-signup`: dedicated /signup/coach flow — no trainee pack picker; sets account_type in metadata. */
+  variant?: AuthVariant;
+};
 
 /** Trial / invite links: ?signup=1&email=...&name=...&pack=sales|property|education */
 function packFromInviteParam(raw: string | null): PracticePack | null {
@@ -28,17 +37,23 @@ function inviteFromSearchParams(params: URLSearchParams) {
   return { email, name, pack, openSignup };
 }
 
-export default function Auth() {
+export default function Auth({ variant = "trainee" }: AuthProps) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invite = inviteFromSearchParams(searchParams);
+  const isCoachSignup = variant === "coach-signup";
   // While Education is gated, skip the pack picker — everyone is Property.
-  const skipPackStep = !ENABLE_EDUCATION_PACK || Boolean(invite.pack);
+  const skipPackStep = isCoachSignup || !ENABLE_EDUCATION_PACK || Boolean(invite.pack);
   const initialPack: PracticePack =
     ENABLE_EDUCATION_PACK && invite.pack === "education" ? "education" : "property";
 
-  const [mode, setMode] = useState(invite.openSignup ? "signup" : "login");
+  const [authMode, setAuthMode] = useState<"login" | "signup">(
+    isCoachSignup || invite.openSignup ? "signup" : "login"
+  );
   // signup: pack (optional) → choose method → email → account created → onboarding in app
-  const [signupStep, setSignupStep] = useState(skipPackStep ? "choose" : "pack"); // pack | choose | email
+  const [signupStep, setSignupStep] = useState<"pack" | "choose" | "email">(
+    skipPackStep ? "choose" : "pack"
+  );
   const [practicePack, setPracticePack] = useState<PracticePack>(initialPack);
   const [email, setEmail] = useState(invite.email);
   const [password, setPassword] = useState("");
@@ -47,6 +62,22 @@ export default function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const inviteLockedPack = Boolean(invite.pack) || !ENABLE_EDUCATION_PACK;
+
+  useEffect(() => {
+    if (!isCoachSignup) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled || !data.session) return;
+      navigate(appPath("/coach"), { replace: true });
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate(appPath("/coach"), { replace: true });
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [isCoachSignup, navigate]);
 
   useEffect(() => {
     try {
@@ -74,14 +105,14 @@ export default function Auth() {
   }
 
   function goLogin() {
-    setMode("login");
+    setAuthMode("login");
     setSignupStep(skipPackStep ? "choose" : "pack");
     setError(null);
     setMessage(null);
   }
 
   function goSignup() {
-    setMode("signup");
+    setAuthMode("signup");
     setSignupStep(skipPackStep ? "choose" : "pack");
     setError(null);
     setMessage(null);
@@ -120,6 +151,7 @@ export default function Auth() {
           data: {
             full_name: fullName.trim() || email,
             practice_pack: practicePack,
+            ...(isCoachSignup ? { account_type: "coach" as const } : {}),
           },
         },
       });
@@ -127,7 +159,13 @@ export default function Auth() {
       setMessage(
         "If this is a new account, check your email to confirm it, then log in. If you already have an account with this email (including via Google), just log in directly instead."
       );
-      goLogin();
+      if (isCoachSignup) {
+        setMessage(
+          "If this is a new account, check your email to confirm it, then log in here. After login you'll go to the coach dashboard."
+        );
+      } else {
+        goLogin();
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to create your account.");
     } finally {
@@ -139,26 +177,42 @@ export default function Auth() {
     setError(null);
     setLoading(true);
     // Only lock pack on signup Google; login must keep the existing profile pack.
-    if (mode === "signup") rememberPack(practicePack);
+    if (authMode === "signup" && !isCoachSignup) rememberPack(practicePack);
+    const redirectPath = isCoachSignup
+      ? `${appPath("/coach")}?coach_google_intent=1`
+      : "/dashboard";
     try {
+      // Google drops options.data. Remember coach intent across the redirect.
+      if (isCoachSignup) markCoachGoogleIntent();
+      else clearCoachGoogleIntent();
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-          ...(mode === "signup"
-            ? { data: { practice_pack: practicePack } }
+          redirectTo: `${window.location.origin}${redirectPath}`,
+          ...(authMode === "signup"
+            ? {
+                data: isCoachSignup
+                  ? { account_type: "coach" as const, practice_pack: "property" as const }
+                  : { practice_pack: practicePack },
+              }
             : {}),
         },
       });
       if (err) throw err;
     } catch (err: unknown) {
+      if (isCoachSignup) clearCoachGoogleIntent();
       setError(err instanceof Error ? err.message : "Unable to continue with Google.");
       setLoading(false);
     }
   }
 
-  const subtitle =
-    mode === "login"
+  const subtitle = isCoachSignup
+    ? authMode === "login"
+      ? "Log in to coach dashboard"
+      : signupStep === "choose"
+        ? "Create your coach account"
+        : "Create your coach account"
+    : authMode === "login"
       ? "Log in to continue"
       : signupStep === "pack"
         ? "What will you practise?"
@@ -187,7 +241,7 @@ export default function Auth() {
           <p style={{ color: "#6B7280", fontSize: 13, marginTop: 6 }}>{subtitle}</p>
         </div>
 
-        {mode === "login" && (
+        {authMode === "login" && (
           <>
             <button type="button" onClick={handleGoogleAuth} disabled={loading} style={secondaryBtnStyle}>
               Continue with Google
@@ -205,7 +259,7 @@ export default function Auth() {
           </>
         )}
 
-        {mode === "signup" && signupStep === "pack" && ENABLE_EDUCATION_PACK && (
+        {authMode === "signup" && signupStep === "pack" && ENABLE_EDUCATION_PACK && !isCoachSignup && (
           <>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 8 }}>
               {([
@@ -246,7 +300,7 @@ export default function Auth() {
           </>
         )}
 
-        {mode === "signup" && signupStep === "choose" && (
+        {authMode === "signup" && signupStep === "choose" && (
           <>
             {ENABLE_EDUCATION_PACK && (
               <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, textAlign: "center" }}>
@@ -282,7 +336,7 @@ export default function Auth() {
           </>
         )}
 
-        {mode === "signup" && signupStep === "email" && (
+        {authMode === "signup" && signupStep === "email" && (
           <form onSubmit={handleEmailSignup} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <input
               placeholder="Full name"
@@ -304,7 +358,7 @@ export default function Auth() {
         )}
 
         <p style={{ textAlign: "center", fontSize: 13, color: "#6B7280", marginTop: 20 }}>
-          {mode === "login" ? (
+          {authMode === "login" ? (
             <>Don&apos;t have an account?{" "}
               <button type="button" onClick={goSignup} style={linkStyle}>Sign up</button>
             </>

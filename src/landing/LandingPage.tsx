@@ -4,6 +4,7 @@ import "./landing.css";
 import { useReveal } from "./useReveal";
 import { supabase } from "../supabaseClient";
 import { appPath } from "../routes";
+import { hasCoachGoogleIntent } from "../authCoachIntent";
 import Nav from "./sections/Nav";
 import Hero from "./sections/Hero";
 import WhyArena from "./sections/WhyArena";
@@ -29,13 +30,13 @@ export default function LandingPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
       if (data.session) {
-        navigate(appPath(), { replace: true });
+        navigate(hasCoachGoogleIntent() ? appPath("/coach") : appPath(), { replace: true });
         return;
       }
       setReady(true);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => {
-      if (sess) navigate(appPath(), { replace: true });
+      if (sess) navigate(hasCoachGoogleIntent() ? appPath("/coach") : appPath(), { replace: true });
     });
     return () => {
       cancelled = true;

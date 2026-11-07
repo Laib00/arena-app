@@ -27,18 +27,29 @@ where practice_pack is null or practice_pack = '';
 -- Allow signup metadata to set practice_pack on new profiles.
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  user_role text;
+  pack text;
 begin
-  insert into public.profiles (id, email, full_name, industry, practice_pack, agent_profile)
+  user_role := case
+    when lower(trim(coalesce(new.raw_user_meta_data->>'account_type', ''))) = 'coach' then 'coach'
+    else 'trainee'
+  end;
+
+  pack := case
+    when user_role = 'coach' then 'property'
+    when coalesce(new.raw_user_meta_data->>'practice_pack', 'property') = 'education' then 'education'
+    else 'property'
+  end;
+
+  insert into public.profiles (id, email, full_name, role, industry, practice_pack, agent_profile)
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    user_role,
     coalesce(new.raw_user_meta_data->>'industry', 'Property'),
-    case
-      when coalesce(new.raw_user_meta_data->>'practice_pack', 'property') = 'education'
-        then 'education'
-      else 'property'
-    end,
+    pack,
     new.raw_user_meta_data->'agent_profile'
   );
   return new;

@@ -106,9 +106,13 @@ export interface ConversationSession {
   setting?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
+  /** Coach library used for RAG in this session (trainee practice). */
+  rag_library_id?: string | null;
   himself_snapshot?: AgentProfile | null;
   client_snapshot?: (Persona & { _challenge?: Challenge | null }) | null;
   challenge_snapshot?: Challenge | null;
+  aim_snapshot?: Aim | null;
+  setting_snapshot?: Setting | null;
   xp_awarded?: number | null;
   [key: string]: unknown;
 }
