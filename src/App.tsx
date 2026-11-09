@@ -43,6 +43,7 @@ import { clearCoachGoogleIntent, hasCoachGoogleIntent } from "./authCoachIntent"
 import {
   formatRagContextBlock,
   logConversationRetrievals,
+  resolveCoachAnalysisLibraryId,
   retrieveRagChunks,
   userMessageForRagQuery,
 } from "./rag";
@@ -101,6 +102,7 @@ type DebriefSections = {
   areas_to_improve?: string;
   client_fit?: string;
   key_recommendation?: string;
+  related_topics?: string;
 };
 
 /** True when Supabase JWT user_metadata says account_type coach (set at coach signup). */
@@ -718,7 +720,9 @@ export default function App() {
     if (!conv || !conv.client_snapshot) return;
 
     const rag = (conv as { rag_library_id?: string | null }).rag_library_id ?? null;
-    setSessionRagLibraryId(rag);
+    setSessionRagLibraryId(
+      rag && enrolledLibraries.some((l) => l.id === rag) ? rag : null
+    );
 
     const { data: pastMessages } = await supabase
       .from("messages")
@@ -900,12 +904,15 @@ export default function App() {
     ragLibraryId: explicitRagId = undefined,
   }: StartRoleplayOptions) {
     if (!session || !startClient || !startAim || !startSetting) return;
-    const ragId =
+    const rawRagId =
       explicitRagId !== undefined
         ? explicitRagId
         : profile?.role !== "coach" && profile?.role !== "manager"
           ? selectedRagLibraryId
           : null;
+    // Coach library RAG (chat + post-session analysis) only for enrolled trainees.
+    const ragId =
+      rawRagId && enrolledLibraries.some((l) => l.id === rawRagId) ? rawRagId : null;
     setSessionRagLibraryId(ragId);
     setError(null);
     setLoading(true);
@@ -1071,8 +1078,11 @@ export default function App() {
     setInput("");
     setError(null);
     const userMsgDisplay: ChatMessage = { role: "user", content: text };
+    const enrolledForSession =
+      Boolean(sessionRagLibraryId) &&
+      enrolledLibraries.some((l) => l.id === sessionRagLibraryId);
     const useRag =
-      Boolean(sessionRagLibraryId && conversationId) &&
+      Boolean(sessionRagLibraryId && conversationId && enrolledForSession) &&
       profile?.role !== "coach" &&
       profile?.role !== "manager";
     const userMsgForModel: ChatMessage = useRag
@@ -1126,6 +1136,8 @@ export default function App() {
     ];
     if (suggestions) {
       rawParts.push("AI SUGGESTIONS", suggestions);
+    } else if (sections.related_topics) {
+      rawParts.push("RELATED TOPICS", sections.related_topics);
     }
     await supabase.from("coaching_reports").insert({
       conversation_id: convId,
@@ -1482,6 +1494,18 @@ export default function App() {
             setDebriefOpen={setDebriefOpen}
             callGemini={callGemini}
             onSaveDebrief={(payload) => saveDebrief(payload as Record<string, unknown>)}
+            ragLibraryId={
+              sessionRagLibraryId &&
+              enrolledLibraries.some((l) => l.id === sessionRagLibraryId)
+                ? sessionRagLibraryId
+                : null
+            }
+            coachAnalysisLibraryId={resolveCoachAnalysisLibraryId(
+              enrolledLibraries,
+              sessionRagLibraryId || selectedRagLibraryId
+            )}
+            supabase={supabase}
+            traineeProfileId={profile?.id ?? null}
           />
         )}
       </div>

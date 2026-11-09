@@ -1,10 +1,21 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
+import { MoreHorizontal, Upload } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { APP_BASE, appPath } from "../routes";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
 import { chunkPastedText } from "./chunkPaste";
 import { fetchEmbedding } from "../rag";
+import CoachDashboard from "./CoachDashboard";
+import CoachProfileForm from "./CoachProfileForm";
+import CoachShell, { type CoachNavKey } from "./CoachShell";
+import CoachStudents from "./CoachStudents";
+import {
+  COACH_PROFILE_SELECT,
+  isCoachProfileComplete,
+  normalizeCoachProfile,
+  type CoachProfileRow,
+} from "./coachProfile";
 
 type KnowledgeLibraryRow = {
   id: string;
@@ -40,17 +51,8 @@ type Props = {
   onSignOut: () => void;
 };
 
-const shellWrap: React.CSSProperties = {
-  minHeight: "100vh",
-  background: CREAM,
-  color: NAVY,
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-};
-
 const container: React.CSSProperties = {
   maxWidth: 720,
-  margin: "0 auto",
-  padding: "24px 20px 48px",
 };
 
 const btnSecondary: React.CSSProperties = {
@@ -75,67 +77,13 @@ const btnPrimary: React.CSSProperties = {
   cursor: "pointer",
 };
 
-function CoachNav({ onSignOut }: { onSignOut: () => void }) {
-  return (
-    <header
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 16,
-        padding: "16px 20px",
-        borderBottom: "1px solid #E2DFD6",
-        background: "#fff",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-        <Link
-          to={appPath("/coach")}
-          style={{ fontFamily: "Georgia, serif", fontSize: 18, fontWeight: 700, color: NAVY, textDecoration: "none" }}
-        >
-          Arena
-        </Link>
-        <nav style={{ display: "flex", gap: 14, fontSize: 14 }}>
-          <Link to={appPath("/coach")} style={{ color: "#6B7280", textDecoration: "none" }}>
-            Home
-          </Link>
-          <Link to={appPath("/coach/libraries")} style={{ color: NAVY, fontWeight: 600, textDecoration: "none" }}>
-            Libraries
-          </Link>
-        </nav>
-      </div>
-      <button type="button" onClick={onSignOut} style={btnSecondary}>
-        Sign out
-      </button>
-    </header>
-  );
-}
-
-function CoachHome({ fullName }: { fullName?: string | null }) {
-  return (
-    <div style={container}>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: 26, margin: "8px 0 8px" }}>Coach dashboard</h1>
-      {fullName ? (
-        <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 20px" }}>Signed in as {fullName}</p>
-      ) : null}
-      <p style={{ fontSize: 15, lineHeight: 1.55, marginBottom: 24 }}>
-        Create <strong>knowledge libraries</strong> — collections of text that will power RAG for your trainees in a later
-        phase. For now you can add a library and paste content to verify the pipeline.
-      </p>
-      <Link to={appPath("/coach/libraries")} style={{ ...btnPrimary, display: "inline-block", textDecoration: "none" }}>
-        Manage libraries
-      </Link>
-    </div>
-  );
-}
+const LIBRARY_CARD_ART = "/images/ecosystem/coaches/coach_library_card.png";
 
 function LibrariesList({ profileId }: { profileId: string }) {
   const navigate = useNavigate();
   const [rows, setRows] = useState<KnowledgeLibraryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -155,17 +103,15 @@ function LibrariesList({ profileId }: { profileId: string }) {
     void load();
   }, [load]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
+  async function createLibrary() {
     setSaving(true);
     setError(null);
     const { data, error: insErr } = await supabase
       .from("knowledge_libraries")
       .insert({
         owner_id: profileId,
-        title: title.trim(),
-        description: description.trim() || null,
+        title: "Untitled library",
+        description: null,
         status: "draft",
       })
       .select("id")
@@ -175,86 +121,222 @@ function LibrariesList({ profileId }: { profileId: string }) {
       setError(insErr.message);
       return;
     }
-    setTitle("");
-    setDescription("");
     if (data?.id) navigate(appPath(`/coach/libraries/${data.id}`));
     else void load();
   }
 
-  return (
-    <div style={container}>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, margin: "8px 0 16px" }}>Knowledge libraries</h1>
-      <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>
-        Each library is a bucket for documents and (later) embeddings. Trainees get access via enrollments in a later
-        phase.
-      </p>
-
-      <form
-        onSubmit={handleCreate}
+  const statusPill = (status: string) => {
+    const label = status === "active" ? "Active" : status === "archived" ? "Archived" : "Draft";
+    return (
+      <span
         style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 28,
+          fontSize: 11,
+          fontWeight: 700,
+          color: "#6B7280",
+          background: "#F3F0EA",
+          padding: "2px 8px",
+          borderRadius: 999,
         }}
       >
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>New library</div>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-        <textarea
-          style={{ ...inputStyle, minHeight: 72, resize: "vertical", marginBottom: 12 }}
-          placeholder="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <button type="submit" disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
-          {saving ? "Creating…" : "Create library"}
-        </button>
-        {error && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{error}</div>}
-      </form>
+        {label}
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <h1 style={{ fontFamily: "Georgia, serif", fontSize: 28, margin: "0 0 6px", color: NAVY }}>
+        Knowledge libraries
+      </h1>
+      <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 22px", lineHeight: 1.5 }}>
+        Manage the playbooks your students practise with.
+      </p>
+
+      {error && (
+        <div style={{ marginBottom: 14, color: "#7A2E3A", fontSize: 13 }}>{error}</div>
+      )}
 
       {loading ? (
         <p style={{ color: "#6B7280" }}>Loading…</p>
       ) : rows.length === 0 ? (
-        <p style={{ color: "#6B7280" }}>No libraries yet. Create one above.</p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {rows.map((r) => (
-            <li
-              key={r.id}
+        <>
+          <div
+            style={{
+              position: "relative",
+              borderRadius: 16,
+              overflow: "hidden",
+              border: "1px solid #F0E4DC",
+              minHeight: 210,
+              background: "#FFF1ED",
+              marginBottom: 16,
+            }}
+          >
+            <img
+              src={LIBRARY_CARD_ART}
+              alt=""
               style={{
-                background: "#fff",
-                border: "1px solid #E2DFD6",
-                borderRadius: 10,
-                marginBottom: 10,
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                objectPosition: "right bottom",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                padding: "28px 24px",
+                maxWidth: "58%",
               }}
             >
-              <Link
-                to={appPath(`/coach/libraries/${r.id}`)}
+              <h2
                 style={{
-                  display: "block",
-                  padding: 14,
+                  fontFamily: "Georgia, serif",
+                  fontSize: 26,
+                  margin: "0 0 8px",
                   color: NAVY,
-                  textDecoration: "none",
+                  lineHeight: 1.2,
                 }}
               >
-                <div style={{ fontWeight: 700 }}>{r.title}</div>
-                {r.description ? (
-                  <div style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>{r.description}</div>
-                ) : null}
-                <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6 }}>
-                  Status: {r.status} · {new Date(r.created_at).toLocaleString()}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                Create your first library
+              </h2>
+              <p style={{ margin: "0 0 18px", fontSize: 14, color: "#6B7280", lineHeight: 1.45 }}>
+                Add scripts, frameworks, and examples for your students to practise with.
+              </p>
+              <button
+                type="button"
+                onClick={() => void createLibrary()}
+                disabled={saving}
+                style={{
+                  ...btnPrimary,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#fff",
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? "Creating…" : "+ New library"}
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #E2DFD6",
+              borderRadius: 14,
+              padding: 18,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 15, color: NAVY, marginBottom: 14 }}>
+              How it works
+            </div>
+            {[
+              "Add materials",
+              "Prepare for practice",
+              "Activate and enroll students",
+            ].map((step, i) => (
+              <div
+                key={step}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: i < 2 ? 12 : 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    background: "#FFF4EC",
+                    color: GOLD,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <span style={{ fontSize: 14, color: NAVY }}>{step}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: 14,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => void createLibrary()}
+              disabled={saving}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "9px 14px",
+                borderRadius: 8,
+                border: `1.5px solid ${GOLD}`,
+                background: "#fff",
+                color: GOLD,
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: saving ? "wait" : "pointer",
+                fontFamily: "inherit",
+                opacity: saving ? 0.7 : 1,
+              }}
+            >
+              {saving ? "Creating…" : "+ New library"}
+            </button>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {rows.map((r) => (
+              <li
+                key={r.id}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E2DFD6",
+                  borderRadius: 12,
+                  marginBottom: 10,
+                }}
+              >
+                <Link
+                  to={appPath(`/coach/libraries/${r.id}`)}
+                  style={{
+                    display: "block",
+                    padding: "16px 18px",
+                    color: NAVY,
+                    textDecoration: "none",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{r.title}</span>
+                    {statusPill(r.status)}
+                  </div>
+                  {r.description ? (
+                    <div style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>{r.description}</div>
+                  ) : null}
+                  <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6 }}>
+                    Created {new Date(r.created_at).toLocaleDateString()}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
@@ -300,6 +382,11 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   const [chunkBusyId, setChunkBusyId] = useState<string | null>(null);
   const [docBusyId, setDocBusyId] = useState<string | null>(null);
   const [docsActionError, setDocsActionError] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<"materials" | "students">("materials");
+  const [addMode, setAddMode] = useState<"upload" | "paste">("upload");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadDocuments = useCallback(async () => {
     setDocsLoading(true);
@@ -526,9 +613,7 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     void load();
   }, [load]);
 
-  async function handleFileUpload(e: React.FormEvent) {
-    e.preventDefault();
-    if (!uploadFile) return;
+  async function ingestFile(file: File, titleOverride?: string) {
     setUploading(true);
     setUploadError(null);
     setUploadOk(null);
@@ -541,8 +626,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     }
     const formData = new FormData();
     formData.append("library_id", libraryId);
-    formData.append("file", uploadFile);
-    if (uploadTitle.trim()) formData.append("title", uploadTitle.trim());
+    formData.append("file", file);
+    const title = (titleOverride ?? uploadTitle).trim();
+    if (title) formData.append("title", title);
     try {
       const res = await fetch("/api/coach/ingest", {
         method: "POST",
@@ -571,9 +657,10 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
       }
       setUploadFile(null);
       setUploadTitle("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setUploadOk(
         json.chunk_count != null
-          ? `Uploaded and indexed ${json.chunk_count} chunk(s). Document id: ${json.document_id ?? "—"}.`
+          ? `Uploaded and indexed ${json.chunk_count} chunk(s).`
           : "Upload complete."
       );
       void load();
@@ -582,6 +669,12 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     } finally {
       setUploading(false);
     }
+  }
+
+  async function handleFileUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile) return;
+    await ingestFile(uploadFile);
   }
 
   async function handlePasteSave(e: React.FormEvent) {
@@ -747,16 +840,12 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   }
 
   if (loading) {
-    return (
-      <div style={container}>
-        <p style={{ color: "#6B7280" }}>Loading…</p>
-      </div>
-    );
+    return <div style={{ color: "#6B7280" }}>Loading…</div>;
   }
 
   if (!lib) {
     return (
-      <div style={container}>
+      <div>
         <p style={{ color: "#7A2E3A" }}>{loadError || "Not found."}</p>
         <Link to={appPath("/coach/libraries")} style={{ color: NAVY, fontWeight: 600 }}>
           ← Back to libraries
@@ -765,391 +854,773 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     );
   }
 
+  const materialsCount = docCount ?? documents.length;
+  const studentsCount = enrolledRows.length;
+  const hasMaterials = materialsCount > 0;
+  const isActive = lib.status === "active";
+  const setupStep = !hasMaterials ? 0 : !isActive ? 1 : 2;
+  const statusLabel = isActive ? "Active" : lib.status === "archived" ? "Archived" : "Draft";
+
+  const tabBtn = (key: "materials" | "students", label: string) => (
+    <button
+      type="button"
+      onClick={() => setDetailTab(key)}
+      style={{
+        border: "none",
+        background: "transparent",
+        padding: "10px 2px 12px",
+        marginRight: 22,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 14,
+        fontWeight: detailTab === key ? 700 : 500,
+        color: detailTab === key ? NAVY : "#6B7280",
+        borderBottom: detailTab === key ? `2.5px solid ${GOLD}` : "2.5px solid transparent",
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const modeToggle = (
+    <div
+      style={{
+        display: "inline-flex",
+        background: "#F3F0EA",
+        borderRadius: 10,
+        padding: 4,
+        marginBottom: 16,
+      }}
+    >
+      {(["upload", "paste"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setAddMode(m)}
+          style={{
+            border: "none",
+            borderRadius: 8,
+            padding: "8px 14px",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: 13,
+            fontWeight: 700,
+            background: addMode === m ? "#FFF4EC" : "transparent",
+            color: addMode === m ? GOLD : "#6B7280",
+          }}
+        >
+          {m === "upload" ? "Upload file" : "Paste text"}
+        </button>
+      ))}
+    </div>
+  );
+
+  const uploadPanel = (
+    <div>
+      {modeToggle}
+      <div
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) void ingestFile(file);
+        }}
+        style={{
+          border: `1.5px dashed ${dragOver ? GOLD : "#E2DFD6"}`,
+          borderRadius: 12,
+          padding: "28px 20px",
+          textAlign: "center",
+          background: dragOver ? "#FFF4EC" : "#FFFCFA",
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "#FFF4EC",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 12,
+          }}
+        >
+          <Upload size={20} color={GOLD} aria-hidden />
+        </div>
+        <div style={{ fontSize: 14, color: NAVY, marginBottom: 4 }}>
+          Drag a file here or{" "}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: "none",
+              background: "none",
+              color: GOLD,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 14,
+              padding: 0,
+            }}
+          >
+            choose a file
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 14 }}>PDF, Word, TXT, or Markdown</div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.txt,.md,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void ingestFile(file);
+          }}
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            ...btnPrimary,
+            color: "#fff",
+            opacity: uploading ? 0.7 : 1,
+          }}
+        >
+          {uploading ? "Uploading…" : "Choose file"}
+        </button>
+      </div>
+      {uploadOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{uploadOk}</div>}
+      {uploadError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{uploadError}</div>}
+    </div>
+  );
+
+  const pastePanel = (
+    <form onSubmit={handlePasteSave}>
+      {modeToggle}
+      <input
+        style={{ ...inputStyle, marginBottom: 10 }}
+        placeholder="Document title"
+        value={pasteTitle}
+        onChange={(e) => setPasteTitle(e.target.value)}
+      />
+      <textarea
+        style={{ ...inputStyle, minHeight: 160, resize: "vertical", marginBottom: 12 }}
+        placeholder="Paste your coaching notes here…"
+        value={pasteBody}
+        onChange={(e) => setPasteBody(e.target.value)}
+        required
+      />
+      <button type="submit" disabled={saving} style={{ ...btnPrimary, color: "#fff", opacity: saving ? 0.7 : 1 }}>
+        {saving ? "Saving…" : "Save material"}
+      </button>
+      {pasteOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{pasteOk}</div>}
+      {pasteError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{pasteError}</div>}
+    </form>
+  );
+
   return (
-    <div style={container}>
-      <Link to={appPath("/coach/libraries")} style={{ fontSize: 13, color: "#6B7280", textDecoration: "none" }}>
-        ← Libraries
-      </Link>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, margin: "12px 0 8px" }}>{lib.title}</h1>
-      {lib.description ? <p style={{ color: "#6B7280", marginBottom: 12 }}>{lib.description}</p> : null}
-      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>
-        Documents: {docCount ?? "—"} · Chunks: {chunkCount ?? "—"}
-        {embeddedCount != null && chunkCount != null ? (
-          <> · With embeddings: {embeddedCount}</>
-        ) : null}
-      </p>
-      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
-        Status: <strong>{lib.status}</strong>
-        {lib.status !== "active" ? (
-          <>
-            {" "}
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <Link to={appPath("/coach/libraries")} style={{ fontSize: 13, color: "#6B7280", textDecoration: "none" }}>
+          ← Libraries
+        </Link>
+        <span style={{ fontSize: 13, color: "#9CA3AF" }}> / {lib.title}</span>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontFamily: "Georgia, serif", fontSize: 28, margin: 0, color: NAVY }}>{lib.title}</h1>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: GOLD,
+                background: "#FFF4EC",
+                padding: "3px 10px",
+                borderRadius: 999,
+              }}
+            >
+              {statusLabel}
+            </span>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: "#6B7280" }}>
+            {lib.description || "Coaching materials for your students."}
+          </p>
+        </div>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            aria-label="Library menu"
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{
+              ...btnSecondary,
+              padding: 8,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          {menuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "110%",
+                background: "#fff",
+                border: "1px solid #E2DFD6",
+                borderRadius: 10,
+                boxShadow: "0 8px 24px rgba(10,22,40,0.08)",
+                minWidth: 180,
+                zIndex: 5,
+                padding: 6,
+              }}
+            >
+              {lib.status !== "active" && (
+                <button
+                  type="button"
+                  disabled={activating}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void handleActivateLibrary();
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    border: "none",
+                    background: "transparent",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    color: NAVY,
+                  }}
+                >
+                  {activating ? "Activating…" : "Activate library"}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={embedding || (chunkCount ?? 0) === 0}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void handleEmbedAll();
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: "none",
+                  background: "transparent",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  color: NAVY,
+                }}
+              >
+                {embedding ? "Embedding…" : "Embed missing chunks"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void handleDeleteLibrary();
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: "none",
+                  background: "transparent",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  color: "#7A2E3A",
+                }}
+              >
+                Delete library
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(activateOk || activateError || embedOk || embedError || deleteError) && (
+        <div style={{ marginBottom: 12, fontSize: 13 }}>
+          {activateOk && <div style={{ color: "#2F5233" }}>{activateOk}</div>}
+          {activateError && <div style={{ color: "#7A2E3A" }}>{activateError}</div>}
+          {embedOk && <div style={{ color: "#2F5233" }}>{embedOk}</div>}
+          {embedError && <div style={{ color: "#7A2E3A" }}>{embedError}</div>}
+          {deleteError && <div style={{ color: "#7A2E3A" }}>{deleteError}</div>}
+        </div>
+      )}
+
+      <div style={{ borderBottom: "1px solid #E2DFD6", marginBottom: 20 }}>
+        {tabBtn("materials", `Materials (${materialsCount})`)}
+        {tabBtn("students", `Students (${studentsCount})`)}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.35fr) minmax(240px, 0.75fr)",
+          gap: 16,
+          alignItems: "start",
+        }}
+        className="coach-lib-detail-grid"
+      >
+        <div>
+          {detailTab === "materials" ? (
+            <>
+              {!hasMaterials ? (
+                <div
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #E2DFD6",
+                    borderRadius: 14,
+                    padding: 22,
+                  }}
+                >
+                  <h2 style={{ fontFamily: "Georgia, serif", fontSize: 22, margin: "0 0 6px", color: NAVY }}>
+                    Add your first material
+                  </h2>
+                  <p style={{ margin: "0 0 16px", fontSize: 14, color: "#6B7280" }}>
+                    Upload a document or paste your coaching notes.
+                  </p>
+                  {addMode === "upload" ? uploadPanel : pastePanel}
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      background: "#fff",
+                      border: "1px solid #E2DFD6",
+                      borderRadius: 14,
+                      padding: 18,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: 4, color: NAVY }}>Add material</div>
+                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6B7280" }}>
+                      Upload or paste more coaching content.
+                    </p>
+                    {addMode === "upload" ? uploadPanel : pastePanel}
+                  </div>
+
+                  <div
+                    style={{
+                      background: "#fff",
+                      border: "1px solid #E2DFD6",
+                      borderRadius: 14,
+                      padding: 18,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: 8, color: NAVY }}>
+                      Sources · {chunkCount ?? 0} chunks
+                      {embeddedCount != null ? ` · ${embeddedCount} embedded` : ""}
+                    </div>
+                    {docsActionError && (
+                      <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{docsActionError}</div>
+                    )}
+                    {docsLoading ? (
+                      <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading documents…</p>
+                    ) : (
+                      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                        {documents.map((d) => {
+                          const expanded = expandedDocId === d.id;
+                          const chunks = docChunks[d.id];
+                          const chunkLoad = chunksLoadingDocId === d.id;
+                          return (
+                            <li
+                              key={d.id}
+                              style={{
+                                border: "1px solid #EFEBE3",
+                                borderRadius: 10,
+                                padding: 12,
+                                marginBottom: 10,
+                                background: CREAM,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: NAVY }}>{d.title}</div>
+                                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                                    {d.source_type === "upload" ? "Upload" : "Paste"} · {d.processing_status}
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  <button type="button" onClick={() => toggleDocExpand(d.id)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
+                                    {expanded ? "Hide" : "Chunks"}
+                                  </button>
+                                  {d.storage_path ? (
+                                    <button type="button" onClick={() => void handleDownloadOriginalFile(d)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
+                                      Download
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    disabled={docBusyId === d.id}
+                                    onClick={() => void handleDeleteDocumentRow(d)}
+                                    style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              {expanded ? (
+                                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #E8E4DC" }}>
+                                  {chunkLoad ? (
+                                    <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading…</p>
+                                  ) : !chunks?.length ? (
+                                    <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>No chunks.</p>
+                                  ) : (
+                                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                                      {chunks.map((c, idx) => (
+                                        <li key={c.id} style={{ marginBottom: 8, padding: 10, background: "#fff", borderRadius: 6, border: "1px solid #E8E4DC", fontSize: 12 }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                                            <span style={{ fontWeight: 600 }}>
+                                              Chunk {idx + 1}
+                                              {c.embedding != null ? " · embedded" : " · no embedding"}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              disabled={chunkBusyId === c.id}
+                                              onClick={() => void handleDeleteChunk(c.id, d.id)}
+                                              style={{ ...btnSecondary, padding: "2px 8px", fontSize: 11, color: "#7A2E3A" }}
+                                            >
+                                              Delete
+                                            </button>
+                                          </div>
+                                          <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", color: "#4B5563", maxHeight: 140, overflow: "auto" }}>
+                                            {c.content}
+                                          </pre>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div
+              style={{
+                background: "#fff",
+                border: "1px solid #E2DFD6",
+                borderRadius: 14,
+                padding: 22,
+              }}
+            >
+              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, margin: "0 0 8px", color: NAVY }}>
+                Enroll students
+              </h2>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#6B7280", lineHeight: 1.45 }}>
+                Students must already have an Arena account. Library should be <strong>active</strong> for practice RAG.
+              </p>
+              <form onSubmit={handleEnrollTrainee} style={{ marginBottom: 18 }}>
+                <input
+                  style={{ ...inputStyle, marginBottom: 10 }}
+                  type="email"
+                  placeholder="Trainee email"
+                  value={traineeEmail}
+                  onChange={(e) => setTraineeEmail(e.target.value)}
+                />
+                <button type="submit" disabled={enrolling} style={{ ...btnPrimary, color: "#fff", opacity: enrolling ? 0.7 : 1 }}>
+                  {enrolling ? "Saving…" : "Enroll"}
+                </button>
+              </form>
+              {enrollOk && <div style={{ marginBottom: 10, color: "#2F5233", fontSize: 13 }}>{enrollOk}</div>}
+              {enrollError && <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{enrollError}</div>}
+              {enrolledLoading ? (
+                <p style={{ fontSize: 13, color: "#6B7280" }}>Loading…</p>
+              ) : enrolledRows.length === 0 ? (
+                <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>No students enrolled yet.</p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {enrolledRows.map((r) => (
+                    <li
+                      key={r.profile_id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        padding: "10px 0",
+                        borderBottom: "1px solid #F3F0E8",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>
+                        <strong style={{ color: NAVY }}>{r.full_name || r.email || r.profile_id}</strong>
+                        {r.full_name && r.email ? (
+                          <span style={{ color: "#6B7280", marginLeft: 8 }}>{r.email}</span>
+                        ) : null}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveEnrollment(r.profile_id)}
+                        style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+
+        <aside
+          style={{
+            background: "#FFF4EC",
+            border: "1px solid #F0E4DC",
+            borderRadius: 14,
+            padding: 18,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: GOLD,
+              marginBottom: 14,
+            }}
+          >
+            Library setup
+          </div>
+          {[
+            { title: "Add materials", body: null as string | null },
+            { title: "Activate library", body: null },
+            { title: "Enroll students", body: null },
+          ].map((step, i) => {
+            const done = i < setupStep || (i === 0 && hasMaterials) || (i === 1 && isActive) || (i === 2 && studentsCount > 0 && isActive && hasMaterials);
+            const current = i === setupStep;
+            return (
+              <div
+                key={step.title}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  marginBottom: 14,
+                  padding: current ? "10px 10px" : "4px 0",
+                  borderRadius: 10,
+                  background: current ? "rgba(255,255,255,0.65)" : "transparent",
+                }}
+              >
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    background: done ? "#2F5233" : current ? GOLD : "#fff",
+                    color: done || current ? "#fff" : "#9CA3AF",
+                    border: done || current ? "none" : "1px solid #E2DFD6",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {done ? "✓" : i + 1}
+                </span>
+                <div>
+                  <div style={{ fontWeight: current ? 700 : 600, fontSize: 14, color: NAVY }}>{step.title}</div>
+                </div>
+              </div>
+            );
+          })}
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
+            Arena prepares your materials for practice after you add them.
+          </p>
+          {hasMaterials && !isActive && (
             <button
               type="button"
               disabled={activating}
               onClick={() => void handleActivateLibrary()}
-              style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, marginLeft: 8 }}
+              style={{ ...btnPrimary, color: "#fff", width: "100%", marginTop: 14, opacity: activating ? 0.7 : 1 }}
             >
-              {activating ? "…" : "Set active for trainees"}
+              {activating ? "Activating…" : "Activate library"}
             </button>
-          </>
-        ) : null}
-      </p>
-      {activateOk && <div style={{ fontSize: 13, color: "#2F5233", marginBottom: 12 }}>{activateOk}</div>}
-      {activateError && <div style={{ fontSize: 13, color: "#7A2E3A", marginBottom: 12 }}>{activateError}</div>}
-
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Phase 3 — embeddings</div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 10 }}>
-          Compute vectors for chunks without embeddings (uses <code style={{ fontSize: 12 }}>/api/embeddings</code> +
-          Gemini). Required before RAG search works.
-        </p>
-        <button type="button" disabled={embedding || (chunkCount ?? 0) === 0} onClick={() => void handleEmbedAll()} style={{ ...btnPrimary, opacity: embedding ? 0.7 : 1 }}>
-          {embedding ? "Embedding…" : "Embed all missing chunks"}
-        </button>
-        {embedOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{embedOk}</div>}
-        {embedError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{embedError}</div>}
-      </div>
-
-      <form
-        onSubmit={handleEnrollTrainee}
-        style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Enroll a trainee</div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 10 }}>
-          Adds a row to <code style={{ fontSize: 12 }}>library_enrollments</code> so they can retrieve this library in practice chat (library must be <strong>active</strong>).
-        </p>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          type="email"
-          placeholder="Trainee email"
-          value={traineeEmail}
-          onChange={(e) => setTraineeEmail(e.target.value)}
-        />
-        <button type="submit" disabled={enrolling} style={{ ...btnSecondary, opacity: enrolling ? 0.7 : 1 }}>
-          {enrolling ? "Saving…" : "Enroll"}
-        </button>
-        {enrollOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{enrollOk}</div>}
-        {enrollError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{enrollError}</div>}
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #EFEBE3" }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: NAVY }}>Enrolled trainees</div>
-          {enrolledLoading ? (
-            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading…</p>
-          ) : enrolledRows.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>No enrollments yet.</p>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {enrolledRows.map((r) => (
-                <li
-                  key={r.profile_id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    padding: "8px 0",
-                    borderBottom: "1px solid #F3F0E8",
-                    fontSize: 13,
-                  }}
-                >
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ fontWeight: 600, color: NAVY }}>{r.email || r.profile_id}</span>
-                    {r.full_name ? (
-                      <span style={{ color: "#6B7280", marginLeft: 8 }}>{r.full_name}</span>
-                    ) : null}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleRemoveEnrollment(r.profile_id)}
-                    style={{
-                      ...btnSecondary,
-                      padding: "4px 10px",
-                      fontSize: 12,
-                      flexShrink: 0,
-                      color: "#7A2E3A",
-                    }}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
           )}
-        </div>
-      </form>
-
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Sources in this library</div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>
-          Every paste and upload becomes a <strong>document</strong> with <strong>chunks</strong>. Download the original file (uploads) or a text export of chunks; delete one chunk or remove a whole document.
-        </p>
-        {docsActionError && (
-          <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{docsActionError}</div>
-        )}
-        {docsLoading ? (
-          <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading documents…</p>
-        ) : documents.length === 0 ? (
-          <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>No documents yet. Paste or upload below.</p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {documents.map((d) => {
-              const meta = d.metadata;
-              const origName =
-                meta && typeof meta === "object" && meta !== null && "original_filename" in meta
-                  ? String((meta as { original_filename?: unknown }).original_filename || "")
-                  : "";
-              const expanded = expandedDocId === d.id;
-              const chunks = docChunks[d.id];
-              const chunkLoad = chunksLoadingDocId === d.id;
-              return (
-                <li
-                  key={d.id}
-                  style={{
-                    border: "1px solid #EFEBE3",
-                    borderRadius: 8,
-                    padding: 12,
-                    marginBottom: 10,
-                    background: CREAM,
-                  }}
-                >
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: NAVY }}>{d.title}</div>
-                      <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
-                        {d.source_type === "upload" ? "Upload" : d.source_type === "paste" ? "Paste" : d.source_type}
-                        {" · "}
-                        {d.processing_status}
-                        {d.error_message ? ` — ${d.error_message.slice(0, 120)}${d.error_message.length > 120 ? "…" : ""}` : ""}
-                        {" · "}
-                        {new Date(d.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                      <button
-                        type="button"
-                        onClick={() => toggleDocExpand(d.id)}
-                        style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}
-                      >
-                        {expanded ? "Hide chunks" : "View chunks"}
-                      </button>
-                      {d.storage_path ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleDownloadOriginalFile(d)}
-                          style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}
-                        >
-                          {origName ? `Download ${origName.slice(0, 24)}${origName.length > 24 ? "…" : ""}` : "Download original"}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => void handleDownloadChunksAsText(d)}
-                        style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}
-                      >
-                        Download chunks (.txt)
-                      </button>
-                      <button
-                        type="button"
-                        disabled={docBusyId === d.id}
-                        onClick={() => void handleDeleteDocumentRow(d)}
-                        style={{
-                          ...btnSecondary,
-                          padding: "4px 10px",
-                          fontSize: 12,
-                          color: "#7A2E3A",
-                          opacity: docBusyId === d.id ? 0.6 : 1,
-                        }}
-                      >
-                        {docBusyId === d.id ? "…" : "Delete document"}
-                      </button>
-                    </div>
-                  </div>
-                  {expanded ? (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #E8E4DC" }}>
-                      {chunkLoad ? (
-                        <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading chunks…</p>
-                      ) : !chunks?.length ? (
-                        <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>No chunks (failed ingest or empty).</p>
-                      ) : (
-                        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                          {chunks.map((c, idx) => (
-                            <li
-                              key={c.id}
-                              style={{
-                                marginBottom: 10,
-                                padding: 10,
-                                background: "#fff",
-                                borderRadius: 6,
-                                border: "1px solid #E8E4DC",
-                                fontSize: 12,
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontWeight: 600, color: NAVY }}>
-                                  Chunk {idx + 1}
-                                  {c.embedding != null ? " · embedded" : " · no embedding"}
-                                </span>
-                                <button
-                                  type="button"
-                                  disabled={chunkBusyId === c.id}
-                                  onClick={() => void handleDeleteChunk(c.id, d.id)}
-                                  style={{
-                                    ...btnSecondary,
-                                    padding: "2px 8px",
-                                    fontSize: 11,
-                                    color: "#7A2E3A",
-                                    opacity: chunkBusyId === c.id ? 0.6 : 1,
-                                  }}
-                                >
-                                  {chunkBusyId === c.id ? "…" : "Delete chunk"}
-                                </button>
-                              </div>
-                              <pre
-                                style={{
-                                  margin: 0,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                  fontFamily: "inherit",
-                                  color: "#4B5563",
-                                  maxHeight: 160,
-                                  overflow: "auto",
-                                }}
-                              >
-                                {c.content}
-                              </pre>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+          {isActive && (
+            <button
+              type="button"
+              onClick={() => setDetailTab("students")}
+              style={{ ...btnSecondary, width: "100%", marginTop: 14, background: "#fff" }}
+            >
+              Go to students
+            </button>
+          )}
+        </aside>
       </div>
 
-      <form
-        onSubmit={handleFileUpload}
-        style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Upload file (Phase 2)</div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 10 }}>
-          PDF, plain text, Markdown, or Word (.docx). File goes to Storage under{" "}
-          <code style={{ fontSize: 12 }}>coach-documents/{`{your id}/{library id}/...`}</code>, then text is extracted and
-          chunked (no embeddings yet — Phase 3). Uses local dev API{" "}
-          <code style={{ fontSize: 12 }}>POST /api/coach/ingest</code> when you run <code style={{ fontSize: 12 }}>npm run
-          dev</code>.
-        </p>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          placeholder="Title (optional — defaults to filename)"
-          value={uploadTitle}
-          onChange={(e) => setUploadTitle(e.target.value)}
-        />
-        <input
-          type="file"
-          accept=".pdf,.txt,.md,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          style={{ marginBottom: 12, fontSize: 14 }}
-          onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-        />
-        <button type="submit" disabled={uploading || !uploadFile} style={{ ...btnPrimary, opacity: uploading || !uploadFile ? 0.6 : 1 }}>
-          {uploading ? "Uploading…" : "Upload & ingest"}
-        </button>
-        {uploadOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{uploadOk}</div>}
-        {uploadError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{uploadError}</div>}
-      </form>
-
-      <form
-        onSubmit={handlePasteSave}
-        style={{
-          background: "#fff",
-          border: "1px solid #E2DFD6",
-          borderRadius: 10,
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Paste text (Phase 1)</div>
-        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 10 }}>
-          Text is split into chunks and stored in <code style={{ fontSize: 12 }}>knowledge_chunks</code>. Embeddings
-          come in Phase 3.
-        </p>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          placeholder="Document title"
-          value={pasteTitle}
-          onChange={(e) => setPasteTitle(e.target.value)}
-        />
-        <textarea
-          style={{ ...inputStyle, minHeight: 160, resize: "vertical", marginBottom: 12 }}
-          placeholder="Paste knowledge base text here…"
-          value={pasteBody}
-          onChange={(e) => setPasteBody(e.target.value)}
-          required
-        />
-        <button type="submit" disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
-          {saving ? "Saving…" : "Save as chunked document"}
-        </button>
-        {pasteOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{pasteOk}</div>}
-        {pasteError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{pasteError}</div>}
-      </form>
-
-      {deleteError && <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{deleteError}</div>}
-      <button type="button" onClick={handleDeleteLibrary} style={{ ...btnSecondary, color: "#7A2E3A", borderColor: "#E2DFD6" }}>
-        Delete this library
-      </button>
+      <style>{`
+        @media (max-width: 900px) {
+          .coach-lib-detail-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
 export default function CoachArea({ profileId, fullName, onSignOut }: Props) {
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname;
 
+  const [coachProfile, setCoachProfile] = useState<CoachProfileRow | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  const loadCoachProfile = useCallback(async () => {
+    setProfileLoading(true);
+    const full = await supabase
+      .from("coach_profiles")
+      .select(COACH_PROFILE_SELECT)
+      .eq("profile_id", profileId)
+      .maybeSingle();
+    let raw: Record<string, unknown> | null = full.data as Record<string, unknown> | null;
+    if (full.error) {
+      // Migration not applied yet — fall back to base columns.
+      console.warn("coach_profiles (full):", full.error.message);
+      const fallback = await supabase
+        .from("coach_profiles")
+        .select("profile_id, display_name, bio, specialties, created_at, updated_at")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+      raw = (fallback.data as Record<string, unknown> | null) || null;
+      if (fallback.error) console.warn("coach_profiles:", fallback.error.message);
+    }
+    setCoachProfile(normalizeCoachProfile(raw));
+    setProfileLoading(false);
+  }, [profileId]);
+
+  useEffect(() => {
+    void loadCoachProfile();
+  }, [loadCoachProfile]);
+
+  const profileReady = isCoachProfileComplete(coachProfile);
+
+  useEffect(() => {
+    if (profileLoading || profileReady) return;
+    const onSetupRoute =
+      matchPath({ path: `${APP_BASE}/coach`, end: true }, path) ||
+      matchPath({ path: `${APP_BASE}/coach/profile`, end: true }, path);
+    if (!onSetupRoute) {
+      navigate(appPath("/coach"), { replace: true });
+    }
+  }, [profileLoading, profileReady, path, navigate]);
+
   const detail = matchPath({ path: `${APP_BASE}/coach/libraries/:libraryId`, end: true }, path);
+  const onLibraries = Boolean(
+    detail || matchPath({ path: `${APP_BASE}/coach/libraries`, end: true }, path)
+  );
+  const onStudents = Boolean(matchPath({ path: `${APP_BASE}/coach/students`, end: true }, path));
+  const onProfile = Boolean(matchPath({ path: `${APP_BASE}/coach/profile`, end: true }, path));
+  const navActive: CoachNavKey = !profileReady
+    ? "setup"
+    : onProfile
+      ? "profile"
+      : onStudents
+        ? "students"
+        : onLibraries
+          ? "libraries"
+          : "home";
+
+  const breadcrumb = !profileReady
+    ? "Profile setup"
+    : onProfile
+      ? "Profile"
+      : onStudents
+        ? "Students"
+        : detail
+          ? "Library"
+          : onLibraries
+            ? "Libraries"
+            : "Dashboard";
 
   let body: React.ReactNode;
-  if (detail?.params?.libraryId) {
+  if (profileLoading) {
+    body = <div style={{ color: "#6B7280" }}>Loading coach profile…</div>;
+  } else if (!profileReady) {
+    body = (
+      <CoachProfileForm
+        profileId={profileId}
+        fullName={fullName}
+        initial={coachProfile}
+        mode="setup"
+        onSaved={(row) => setCoachProfile(row)}
+        onContinue={(row) => {
+          setCoachProfile(row);
+          navigate(appPath("/coach"), { replace: true });
+        }}
+      />
+    );
+  } else if (detail?.params?.libraryId) {
     body = <LibraryDetail profileId={profileId} libraryId={detail.params.libraryId} />;
   } else if (matchPath({ path: `${APP_BASE}/coach/libraries`, end: true }, path)) {
     body = <LibrariesList profileId={profileId} />;
+  } else if (onStudents) {
+    body = <CoachStudents profileId={profileId} />;
+  } else if (onProfile) {
+    body = (
+      <CoachProfileForm
+        profileId={profileId}
+        fullName={fullName}
+        initial={coachProfile}
+        mode="edit"
+        onSaved={(row) => setCoachProfile(row)}
+      />
+    );
   } else {
-    body = <CoachHome fullName={fullName} />;
+    body = <CoachDashboard profileId={profileId} coachProfile={coachProfile!} />;
   }
 
   return (
-    <div style={shellWrap}>
-      <CoachNav onSignOut={onSignOut} />
+    <CoachShell
+      active={navActive}
+      onSignOut={onSignOut}
+      setupOnly={!profileReady && !profileLoading}
+      breadcrumb={profileLoading ? undefined : breadcrumb}
+    >
       {body}
-    </div>
+    </CoachShell>
   );
 }

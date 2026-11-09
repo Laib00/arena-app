@@ -900,7 +900,7 @@ export default function SetupScreen({
             ))}
           </select>
           <p style={{ margin: 0, flex: "1 1 100%", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
-            When selected, the AI client can draw on short snippets from your enrolled library (after your coach has embedded chunks).
+            Optional for live chat snippets. Post-session coach analysis always uses your enrolled coach library when chunks are embedded — you do not need to select one here.
           </p>
         </div>
       )}

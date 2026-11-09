@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "../supabaseClient";
-import { ReflectionAnswersView } from "../SessionDebrief";
+import { ReflectionAnswersView, parseEvalSections } from "../SessionDebrief";
 import { formatAiText } from "../formatAiText";
 import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
 import GradeBadge from "../components/GradeBadge";
@@ -25,8 +25,19 @@ type CoachingReport = {
   areas_to_improve?: string | null;
   client_fit?: string | null;
   key_recommendation?: string | null;
+  raw_text?: string | null;
   [key: string]: unknown;
 };
+
+function relatedTopicsFromReport(report: CoachingReport | null | undefined): string | null {
+  if (!report) return null;
+  const raw = String(report.raw_text || "");
+  const fromSuggestions = raw.includes("AI SUGGESTIONS")
+    ? raw.slice(raw.indexOf("AI SUGGESTIONS") + "AI SUGGESTIONS".length)
+    : raw;
+  const parsed = parseEvalSections(fromSuggestions);
+  return parsed?.related_topics?.trim() || null;
+}
 
 type HistoryDetail = {
   messages: Array<{ id?: string; role: string; content: string; created_at?: string }>;
@@ -238,6 +249,16 @@ export default function SessionHistory({
                           <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{formatAiText(String(detail.report[f]))}</div>
                         </div>
                       ) : null
+                    )}
+                    {relatedTopicsFromReport(detail.report) && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>
+                          Related coach topics
+                        </div>
+                        <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>
+                          {formatAiText(relatedTopicsFromReport(detail.report)!)}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </>

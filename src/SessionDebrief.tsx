@@ -1,7 +1,12 @@
 import React, { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { X, ArrowRight, Sparkles } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { X, ArrowRight, Sparkles, BookOpen } from "lucide-react";
 import { DISC } from "./constants";
 import { buildEvalPrompt } from "./prompts";
+import {
+  formatRagCoachAnalysisBlock,
+  retrieveCoachPlaybookForDebrief,
+} from "./rag";
 import { NAVY, ACCENT as GOLD } from "./theme";
 import { formatAiText } from "./formatAiText";
 import type { AgentProfile, Aim, ChatMessage, Persona, Setting } from "./types/domain";
@@ -27,8 +32,9 @@ export function parseEvalSections(text: string | null | undefined): EvalSections
     { key: "overall", re: /^OVERALL\s*$/i },
     { key: "strengths", re: /^STRENGTHS\s*$/i },
     { key: "areas_to_improve", re: /^AREAS TO IMPROVE\s*$/i },
-    { key: "client_fit", re: /^CLIENT FIT\s*$/i },
+    { key: "client_fit", re: /^(CLIENT FIT|INTERVIEWER FIT)\s*$/i },
     { key: "key_recommendation", re: /^KEY RECOMMENDATION\s*$/i },
+    { key: "related_topics", re: /^RELATED TOPICS\s*$/i },
   ];
   const lines = String(text).replace(/\r\n/g, "\n").split("\n");
   const sections: EvalSections = {};
@@ -297,6 +303,9 @@ export default function SessionDebrief({
   conversationId,
   callAI,
   onSaveDebrief,
+  ragLibraryId = null,
+  supabase = null,
+  traineeProfileId = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -309,6 +318,11 @@ export default function SessionDebrief({
   conversationId: string | null;
   callAI: (systemPrompt: string, messages: ChatMessage[]) => Promise<string>;
   onSaveDebrief: (payload: Record<string, unknown>) => Promise<void> | void;
+  /** Coach library for post-session analysis (from enrollment; picker optional). */
+  ragLibraryId?: string | null;
+  supabase?: SupabaseClient | null;
+  /** Profile id used to verify library enrollment before coach analysis. */
+  traineeProfileId?: string | null;
 }) {
   const isInterview = client.industry === "Education";
   const reflectionPrompts = isInterview ? REFLECTION_PROMPTS_INTERVIEW : REFLECTION_PROMPTS;
@@ -325,6 +339,8 @@ export default function SessionDebrief({
   const [facts, setFacts] = useState("");
   const [suggestions, setSuggestions] = useState("");
   const [suggestionsSections, setSuggestionsSections] = useState<EvalSections | null>(null);
+  const [playbookSources, setPlaybookSources] = useState<string[]>([]);
+  const [usedCoachPlaybook, setUsedCoachPlaybook] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -377,13 +393,53 @@ export default function SessionDebrief({
   async function generateSuggestions() {
     setLoading(true);
     setError(null);
+    setPlaybookSources([]);
+    setUsedCoachPlaybook(false);
     try {
       const reflectionJson = serializeReflectionAnswers(reflectionPrompts, reflectionAnswers);
       const updateJson = serializeReflectionAnswers(updatePrompts, updateAnswers);
-      const prompt = buildEvalPrompt(himself, client, aim, setting);
+      const reflectionText = formatReflectionForPrompt(reflectionJson);
+      const updateText = formatReflectionForPrompt(updateJson);
+
+      let coachPlaybookBlock = "";
+      // Coach playbook analysis is enrollment-only (registered with that coach's library).
+      if (ragLibraryId && supabase && traineeProfileId) {
+        try {
+          const retrievalQuery = [
+            `Aim: ${aim.key}. Setting: ${setting.key}. Client/interviewer: ${client.name} (${client.grade}).`,
+            `Gaps / hard moments from trainee reflection:\n${reflectionText}`,
+            `Reflection update:\n${updateText}`,
+            `Session facts:\n${facts || "(none)"}`,
+            `Recent transcript excerpt:\n${transcriptText().slice(-3500)}`,
+          ].join("\n\n");
+          const matches = await retrieveCoachPlaybookForDebrief(
+            supabase,
+            ragLibraryId,
+            retrievalQuery,
+            10,
+            { profileId: traineeProfileId }
+          );
+          coachPlaybookBlock = formatRagCoachAnalysisBlock(matches);
+          if (matches.length) {
+            setUsedCoachPlaybook(true);
+            const titles = [
+              ...new Set(
+                matches
+                  .map((m) => m.documentTitle)
+                  .filter((t): t is string => Boolean(t && t.trim()))
+              ),
+            ];
+            setPlaybookSources(titles);
+          }
+        } catch (ragErr) {
+          console.warn("Debrief coach RAG skipped:", ragErr);
+        }
+      }
+
+      const prompt = buildEvalPrompt(himself, client, aim, setting, coachPlaybookBlock);
       const text = await callAI(prompt, [{
         role: "user",
-        content: `Transcript:\n\n${transcriptText()}\n\nSession facts (context):\n${facts || "(none)"}\n\nTrainee reflection before client feedback:\n${formatReflectionForPrompt(reflectionJson)}\n\nClient feedback:\n${clientFeedback || "(none)"}\n\nTrainee reflection update:\n${formatReflectionForPrompt(updateJson)}`,
+        content: `Transcript:\n\n${transcriptText()}\n\nSession facts (context):\n${facts || "(none)"}\n\nTrainee reflection before client feedback:\n${reflectionText}\n\nClient feedback:\n${clientFeedback || "(none)"}\n\nTrainee reflection update:\n${updateText}`,
       }]);
       setSuggestions(text);
       setSuggestionsSections(parseEvalSections(text));
@@ -403,6 +459,8 @@ export default function SessionDebrief({
     setFacts("");
     setSuggestions("");
     setSuggestionsSections(null);
+    setPlaybookSources([]);
+    setUsedCoachPlaybook(false);
     setError(null);
     setLoading(false);
   }, [open]);
@@ -578,12 +636,75 @@ export default function SessionDebrief({
           <>
             {loading ? (
               <div style={{ padding: "28px 0", textAlign: "center", color: "#6B7280", fontSize: 14 }}>
-                Preparing coaching suggestions...
+                {ragLibraryId
+                  ? "Analysing with your coach's playbook..."
+                  : "Preparing coaching suggestions..."}
               </div>
             ) : (
-              <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
-                {formatAiText(suggestions)}
-              </div>
+              <>
+                {usedCoachPlaybook && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      marginBottom: 12,
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      background: "#EEF4F8",
+                      color: NAVY,
+                      fontSize: 12.5,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <BookOpen size={15} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+                    <span>
+                      Grounded in your coach&apos;s library
+                      {playbookSources.length
+                        ? `: ${playbookSources.slice(0, 4).join(", ")}${playbookSources.length > 4 ? "…" : ""}`
+                        : "."}
+                    </span>
+                  </div>
+                )}
+                <div style={{ background: "#F7F4EE", borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap", marginBottom: 18 }}>
+                  {formatAiText(
+                    suggestionsSections?.related_topics
+                      ? suggestions.replace(/\n*RELATED TOPICS\s*\n[\s\S]*$/i, "").trim()
+                      : suggestions
+                  )}
+                </div>
+                {suggestionsSections?.related_topics && (
+                  <div
+                    style={{
+                      border: "1px solid #E2DFD6",
+                      borderRadius: 10,
+                      padding: 16,
+                      marginBottom: 18,
+                      background: "#fff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 10,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        color: GOLD,
+                      }}
+                    >
+                      <BookOpen size={14} aria-hidden />
+                      Related coach topics
+                    </div>
+                    <div style={{ fontSize: 14, lineHeight: 1.65, color: NAVY, whiteSpace: "pre-wrap" }}>
+                      {formatAiText(suggestionsSections.related_topics)}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button

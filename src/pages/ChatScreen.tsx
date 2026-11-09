@@ -1,4 +1,5 @@
 import { useState, type RefObject } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Send, Award, Target } from "lucide-react";
 import { NAVY, GOLD, CREAM } from "../theme";
 import SessionDebrief from "../SessionDebrief";
@@ -40,6 +41,12 @@ type ChatScreenProps = {
   setDebriefOpen: (open: boolean) => void;
   callGemini: (systemPrompt: string, messages: ChatMessage[]) => Promise<string>;
   onSaveDebrief: (payload: unknown) => Promise<void> | void;
+  /** Optional: live chat RAG for this session (from picker). */
+  ragLibraryId?: string | null;
+  /** Post-session coach analysis library — from enrollment, even if picker is None. */
+  coachAnalysisLibraryId?: string | null;
+  supabase?: SupabaseClient | null;
+  traineeProfileId?: string | null;
 };
 
 export default function ChatScreen({
@@ -64,6 +71,10 @@ export default function ChatScreen({
   setDebriefOpen,
   callGemini,
   onSaveDebrief,
+  ragLibraryId = null,
+  coachAnalysisLibraryId = null,
+  supabase = null,
+  traineeProfileId = null,
 }: ChatScreenProps) {
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -158,6 +169,9 @@ export default function ChatScreen({
         conversationId={conversationId}
         callAI={callGemini}
         onSaveDebrief={onSaveDebrief}
+        ragLibraryId={coachAnalysisLibraryId ?? ragLibraryId}
+        supabase={supabase}
+        traineeProfileId={traineeProfileId}
       />
 
       {notesOpen && (

@@ -164,11 +164,17 @@ function buildEvalPrompt(
   himself: AgentProfile,
   client: Persona,
   aim: Aim,
-  setting: Setting
+  setting: Setting,
+  coachPlaybookBlock = ""
 ): string {
+  const relatedTopicsInstr = coachPlaybookBlock
+    ? ` After KEY RECOMMENDATION, add a RELATED TOPICS section: 3–5 short bullets naming concrete topics or document sections from the coach playbook the trainee should revisit, each with a one-line why tied to this session. Prefer titles that appear in the playbook snippets. Do not invent document names.`
+    : "";
+  const playbookPrefix = coachPlaybookBlock ? `${coachPlaybookBlock}\n` : "";
+
   if (client.industry === "Education") {
     const isChallenging = client.grade === "Hard" || client.grade === "Impossible";
-    return `You are an expert interview coach reviewing a practice interview transcript for a student/early-career candidate.
+    return `${playbookPrefix}You are an expert interview coach reviewing a practice interview transcript for a student/early-career candidate.
 
 The candidate (${himself.name}, grade band: ${himself.studentGrade || "student"}, target: ${himself.targetPath || "n/a"}) practised with a simulated interviewer, difficulty "${client.grade}":
 - ${client.name}, ${client.occupation}, DISC ${client.disc} (${DISC[client.disc].name}).
@@ -176,12 +182,12 @@ The candidate (${himself.name}, grade band: ${himself.studentGrade || "student"}
 ${client.notes ? `- Built-in interviewer behaviour: ${client.notes}` : ""}
 - Focus: Aim = ${aim.key} (${aim.desc}). Setting = ${setting.key}.
 
-Give direct, honest, specific coaching. Reference moments from the transcript. Encourage without inflating praise. Structure with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE${isChallenging ? ", INTERVIEWER FIT" : ""}, KEY RECOMMENDATION.${isChallenging ? " In INTERVIEWER FIT, assess whether the candidate read the interviewer's style correctly and adapted appropriately." : ""} Under 300 words. Plain text only — no markdown headers or bold asterisks.`;
+Give direct, honest, specific coaching. Reference moments from the transcript. Encourage without inflating praise. Structure with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE${isChallenging ? ", INTERVIEWER FIT" : ""}, KEY RECOMMENDATION${coachPlaybookBlock ? ", RELATED TOPICS" : ""}.${isChallenging ? " In INTERVIEWER FIT, assess whether the candidate read the interviewer's style correctly and adapted appropriately." : ""}${relatedTopicsInstr} Under 300 words (RELATED TOPICS may add a little more). Plain text only — no markdown headers or bold asterisks.`;
   }
 
   const industryLabel = client.industry === "Property" ? "Property" : "Financial Planning";
   const isChallenging = client.grade === "Hard" || client.grade === "Impossible";
-  return `You are an expert ${industryLabel.toLowerCase()} sales trainer and coach, reviewing a roleplay practice transcript.
+  return `${playbookPrefix}You are an expert ${industryLabel.toLowerCase()} sales trainer and coach, reviewing a roleplay practice transcript.
 
 The trainee agent (${himself.name}, using a "${himself.salesStyle}" sales style) practiced with a simulated client persona, difficulty grade "${client.grade}":
 - ${client.name}, DISC type ${client.disc} (${DISC[client.disc].name}), Need level: ${client.needLevel}.
@@ -191,7 +197,7 @@ ${client.notes ? `- Built-in challenge for this persona: ${client.notes}` : ""}
 
 GRADING PHILOSOPHY: Do not simply reward closing the deal or resolving every objection. A core professional skill is correctly recognizing when a client's expectations are unworkable or unethical to meet (e.g. demanding a guaranteed return, an unrealistic budget-to-outcome match, or anything requiring the agent to overpromise) and handling that with honesty and appropriate boundary-setting — including disengaging or ending the conversation when warranted. If the agent held an ethical line and the client walked away as a result, that can be a correct, well-executed outcome, not a failure to be coached away from. Judge the QUALITY of the judgment shown, not merely whether the sale progressed.
 
-Give the trainee direct, honest, specific coaching feedback based on the transcript they provide next. Reference specific moments/quotes from the transcript. Be encouraging but honest — do not inflate praise, and do not be harsh for its own sake. Structure your response with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE${isChallenging ? ", CLIENT FIT" : ""}, KEY RECOMMENDATION.${isChallenging ? " In CLIENT FIT, assess whether this client was actually a good fit to keep pursuing, and whether the agent's read of that (continuing, pushing back, or disengaging) was the right call — not whether they closed." : ""} Keep the total response under 300 words. Do not use markdown headers (#) or bold asterisks — plain text only.`;
+Give the trainee direct, honest, specific coaching feedback based on the transcript they provide next. Reference specific moments/quotes from the transcript. Be encouraging but honest — do not inflate praise, and do not be harsh for its own sake. Structure your response with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE${isChallenging ? ", CLIENT FIT" : ""}, KEY RECOMMENDATION${coachPlaybookBlock ? ", RELATED TOPICS" : ""}.${isChallenging ? " In CLIENT FIT, assess whether this client was actually a good fit to keep pursuing, and whether the agent's read of that (continuing, pushing back, or disengaging) was the right call — not whether they closed." : ""}${relatedTopicsInstr} Keep the total response under 300 words (RELATED TOPICS may add a little more). Do not use markdown headers (#) or bold asterisks — plain text only.`;
 }
 
 export { buildSystemPrompt, buildEvalPrompt };
