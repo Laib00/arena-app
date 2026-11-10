@@ -395,6 +395,7 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const promptedUntitledRef = useRef(false);
+  const autoEmbedAttemptedRef = useRef<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
     setDocsLoading(true);
@@ -621,8 +622,20 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     void load();
   }, [load]);
 
+  // Catch up once per library: older uploads with missing vectors.
+  useEffect(() => {
+    if (loading || !lib || embedding) return;
+    if ((chunkCount ?? 0) === 0) return;
+    if (embeddedCount != null && chunkCount != null && embeddedCount >= chunkCount) return;
+    if (autoEmbedAttemptedRef.current === lib.id) return;
+    autoEmbedAttemptedRef.current = lib.id;
+    void embedMissingChunks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot catch-up after load
+  }, [loading, lib?.id, chunkCount, embeddedCount, embedding]);
+
   useEffect(() => {
     promptedUntitledRef.current = false;
+    autoEmbedAttemptedRef.current = null;
   }, [libraryId]);
 
   useEffect(() => {
@@ -681,12 +694,19 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
       setUploadFile(null);
       setUploadTitle("");
       if (fileInputRef.current) fileInputRef.current.value = "";
-      setUploadOk(
-        json.chunk_count != null
-          ? `Uploaded and indexed ${json.chunk_count} chunk(s).`
-          : "Upload complete."
-      );
-      void load();
+      setUploadOk("Upload complete. Preparing for practice…");
+      await load();
+      const prepared = await embedMissingChunks();
+      if (prepared.ok) {
+        setUploadOk(
+          prepared.count > 0
+            ? "Upload complete. Material is ready for practice."
+            : "Upload complete."
+        );
+      } else {
+        setUploadError(prepared.error || "Uploaded, but preparing for practice failed. Try again.");
+        setUploadOk(null);
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -741,17 +761,30 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     }));
 
     const { error: cErr } = await supabase.from("knowledge_chunks").insert(chunkRows);
-    setSaving(false);
     if (cErr) {
       setPasteError(cErr.message);
+      setSaving(false);
       return;
     }
     setPasteBody("");
-    setPasteOk(`Saved ${chunks.length} chunk(s) in one document.`);
-    void load();
+    setPasteOk("Saved. Preparing for practice…");
+    await load();
+    const prepared = await embedMissingChunks();
+    setSaving(false);
+    if (prepared.ok) {
+      setPasteOk(
+        prepared.count > 0
+          ? "Saved. Material is ready for practice."
+          : "Saved."
+      );
+    } else {
+      setPasteError(prepared.error || "Saved, but preparing for practice failed. Try again.");
+      setPasteOk(null);
+    }
   }
 
-  async function handleEmbedAll() {
+  /** Embed any chunks missing vectors. Runs after upload/paste and on load catch-up. */
+  async function embedMissingChunks(): Promise<{ ok: boolean; count: number; error?: string }> {
     setEmbedding(true);
     setEmbedError(null);
     setEmbedOk(null);
@@ -764,10 +797,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
         .limit(400);
       if (qErr) throw qErr;
       if (!rows?.length) {
-        setEmbedOk("All chunks already have embeddings (or no chunks yet).");
         setEmbedding(false);
         void load();
-        return;
+        return { ok: true, count: 0 };
       }
       for (const row of rows) {
         const emb = await fetchEmbedding(row.content);
@@ -778,10 +810,13 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
         } as never);
         if (rpcErr) throw new Error(rpcErr.message);
       }
-      setEmbedOk(`Embedded ${rows.length} chunk(s). Trainees need enrollments + active library to use RAG.`);
+      setEmbedOk("Materials are ready for practice.");
       void load();
+      return { ok: true, count: rows.length };
     } catch (e) {
-      setEmbedError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setEmbedError(msg);
+      return { ok: false, count: 0, error: msg };
     } finally {
       setEmbedding(false);
     }
@@ -1263,29 +1298,6 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
               )}
               <button
                 type="button"
-                disabled={embedding || (chunkCount ?? 0) === 0}
-                onClick={() => {
-                  setMenuOpen(false);
-                  void handleEmbedAll();
-                }}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  border: "none",
-                  background: "transparent",
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  color: NAVY,
-                }}
-              >
-                {embedding ? "Embedding…" : "Embed missing chunks"}
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   void handleDeleteLibrary();
@@ -1311,13 +1323,16 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
         </div>
       </div>
 
-      {(activateOk || activateError || embedOk || embedError || deleteError || detailsOk) && (
+      {(activateOk || activateError || embedError || deleteError || detailsOk) && (
         <div style={{ marginBottom: 12, fontSize: 13 }}>
           {detailsOk && <div style={{ color: "#2F5233" }}>{detailsOk}</div>}
           {activateOk && <div style={{ color: "#2F5233" }}>{activateOk}</div>}
           {activateError && <div style={{ color: "#7A2E3A" }}>{activateError}</div>}
-          {embedOk && <div style={{ color: "#2F5233" }}>{embedOk}</div>}
-          {embedError && <div style={{ color: "#7A2E3A" }}>{embedError}</div>}
+          {embedError && (
+            <div style={{ color: "#7A2E3A" }}>
+              Couldn’t finish preparing materials. {embedError}
+            </div>
+          )}
           {deleteError && <div style={{ color: "#7A2E3A" }}>{deleteError}</div>}
         </div>
       )}
@@ -1382,9 +1397,35 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                       padding: 18,
                     }}
                   >
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: NAVY }}>
-                      Sources · {chunkCount ?? 0} chunks
-                      {embeddedCount != null ? ` · ${embeddedCount} embedded` : ""}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontWeight: 700, color: NAVY }}>
+                        Materials ({documents.length})
+                      </div>
+                      {embedding ? (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: GOLD }}>Preparing…</span>
+                      ) : chunkCount != null && embeddedCount != null && chunkCount > 0 && embeddedCount >= chunkCount ? (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#2F5233" }}>Ready for practice</span>
+                      ) : chunkCount != null && chunkCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            autoEmbedAttemptedRef.current = null;
+                            void embedMissingChunks();
+                          }}
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: GOLD,
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            padding: 0,
+                          }}
+                        >
+                          Retry prepare
+                        </button>
+                      ) : null}
                     </div>
                     {docsActionError && (
                       <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{docsActionError}</div>
@@ -1393,83 +1434,43 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                       <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading documents…</p>
                     ) : (
                       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                        {documents.map((d) => {
-                          const expanded = expandedDocId === d.id;
-                          const chunks = docChunks[d.id];
-                          const chunkLoad = chunksLoadingDocId === d.id;
-                          return (
-                            <li
-                              key={d.id}
-                              style={{
-                                border: "1px solid #EFEBE3",
-                                borderRadius: 10,
-                                padding: 12,
-                                marginBottom: 10,
-                                background: CREAM,
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                                <div>
-                                  <div style={{ fontWeight: 600, color: NAVY }}>{d.title}</div>
-                                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
-                                    {d.source_type === "upload" ? "Upload" : "Paste"} · {d.processing_status}
-                                  </div>
-                                </div>
-                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                  <button type="button" onClick={() => toggleDocExpand(d.id)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
-                                    {expanded ? "Hide" : "Chunks"}
-                                  </button>
-                                  {d.storage_path ? (
-                                    <button type="button" onClick={() => void handleDownloadOriginalFile(d)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
-                                      Download
-                                    </button>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    disabled={docBusyId === d.id}
-                                    onClick={() => void handleDeleteDocumentRow(d)}
-                                    style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
-                                  >
-                                    Delete
-                                  </button>
+                        {documents.map((d) => (
+                          <li
+                            key={d.id}
+                            style={{
+                              border: "1px solid #EFEBE3",
+                              borderRadius: 10,
+                              padding: 12,
+                              marginBottom: 10,
+                              background: CREAM,
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontWeight: 600, color: NAVY }}>{d.title}</div>
+                                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                                  {d.source_type === "upload" ? "Uploaded" : "Pasted"}
+                                  {d.processing_status === "ready" ? " · Ready" : ` · ${d.processing_status}`}
                                 </div>
                               </div>
-                              {expanded ? (
-                                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #E8E4DC" }}>
-                                  {chunkLoad ? (
-                                    <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading…</p>
-                                  ) : !chunks?.length ? (
-                                    <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>No chunks.</p>
-                                  ) : (
-                                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                                      {chunks.map((c, idx) => (
-                                        <li key={c.id} style={{ marginBottom: 8, padding: 10, background: "#fff", borderRadius: 6, border: "1px solid #E8E4DC", fontSize: 12 }}>
-                                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                                            <span style={{ fontWeight: 600 }}>
-                                              Chunk {idx + 1}
-                                              {c.embedding != null ? " · embedded" : " · no embedding"}
-                                            </span>
-                                            <button
-                                              type="button"
-                                              disabled={chunkBusyId === c.id}
-                                              onClick={() => void handleDeleteChunk(c.id, d.id)}
-                                              style={{ ...btnSecondary, padding: "2px 8px", fontSize: 11, color: "#7A2E3A" }}
-                                            >
-                                              Delete
-                                            </button>
-                                          </div>
-                                          <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", color: "#4B5563", maxHeight: 140, overflow: "auto" }}>
-                                            {c.content}
-                                          </pre>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              ) : null}
-                            </li>
-                          );
-                        })}
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {d.storage_path ? (
+                                  <button type="button" onClick={() => void handleDownloadOriginalFile(d)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
+                                    Download
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  disabled={docBusyId === d.id}
+                                  onClick={() => void handleDeleteDocumentRow(d)}
+                                  style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
                       </ul>
                     )}
                   </div>
@@ -1608,7 +1609,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
             );
           })}
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
-            Arena prepares your materials for practice after you add them.
+            {embedding
+              ? "Preparing your materials for practice…"
+              : "Arena prepares your materials for practice automatically after you add them."}
           </p>
           {hasMaterials && !isActive && (
             <button
