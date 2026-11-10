@@ -16,6 +16,8 @@ import {
   normalizeCoachProfile,
   type CoachProfileRow,
 } from "./coachProfile";
+import SessionHistory from "../pages/SessionHistory";
+import type { UserProfile } from "../types/domain";
 
 type KnowledgeLibraryRow = {
   id: string;
@@ -48,6 +50,7 @@ type KnowledgeChunkRow = {
 type Props = {
   profileId: string;
   fullName?: string | null;
+  email?: string | null;
   onSignOut: () => void;
 };
 
@@ -1646,10 +1649,17 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   );
 }
 
-export default function CoachArea({ profileId, fullName, onSignOut }: Props) {
+export default function CoachArea({ profileId, fullName, email, onSignOut }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
+
+  const coachUserProfile: UserProfile = {
+    id: profileId,
+    full_name: fullName ?? null,
+    email: email ?? null,
+    role: "coach",
+  };
 
   const [coachProfile, setCoachProfile] = useState<CoachProfileRow | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -1694,10 +1704,16 @@ export default function CoachArea({ profileId, fullName, onSignOut }: Props) {
   }, [profileLoading, profileReady, path, navigate]);
 
   const detail = matchPath({ path: `${APP_BASE}/coach/libraries/:libraryId`, end: true }, path);
+  const studentPractice = matchPath(
+    { path: `${APP_BASE}/coach/students/:traineeId`, end: true },
+    path
+  );
   const onLibraries = Boolean(
     detail || matchPath({ path: `${APP_BASE}/coach/libraries`, end: true }, path)
   );
-  const onStudents = Boolean(matchPath({ path: `${APP_BASE}/coach/students`, end: true }, path));
+  const onStudents = Boolean(
+    matchPath({ path: `${APP_BASE}/coach/students`, end: true }, path) || studentPractice
+  );
   const onProfile = Boolean(matchPath({ path: `${APP_BASE}/coach/profile`, end: true }, path));
   const navActive: CoachNavKey = !profileReady
     ? "setup"
@@ -1713,13 +1729,15 @@ export default function CoachArea({ profileId, fullName, onSignOut }: Props) {
     ? "Profile setup"
     : onProfile
       ? "Profile"
-      : onStudents
-        ? "Students"
-        : detail
-          ? "Library"
-          : onLibraries
-            ? "Libraries"
-            : "Dashboard";
+      : studentPractice
+        ? "Student practice"
+        : onStudents
+          ? "Students"
+          : detail
+            ? "Library"
+            : onLibraries
+              ? "Libraries"
+              : "Dashboard";
 
   let body: React.ReactNode;
   if (profileLoading) {
@@ -1742,7 +1760,18 @@ export default function CoachArea({ profileId, fullName, onSignOut }: Props) {
     body = <LibraryDetail profileId={profileId} libraryId={detail.params.libraryId} />;
   } else if (matchPath({ path: `${APP_BASE}/coach/libraries`, end: true }, path)) {
     body = <LibrariesList profileId={profileId} />;
-  } else if (onStudents) {
+  } else if (studentPractice?.params?.traineeId) {
+    body = (
+      <SessionHistory
+        profile={coachUserProfile}
+        scope="coach"
+        traineeId={studentPractice.params.traineeId}
+        embedded
+        onBack={() => navigate(appPath("/coach/students"))}
+        onSignOut={onSignOut}
+      />
+    );
+  } else if (matchPath({ path: `${APP_BASE}/coach/students`, end: true }, path)) {
     body = <CoachStudents profileId={profileId} />;
   } else if (onProfile) {
     body = (

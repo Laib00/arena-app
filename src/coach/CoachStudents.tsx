@@ -192,11 +192,36 @@ export default function CoachStudents({ profileId }: Props) {
                   </Link>
                 ))}
               </div>
-              {r.enrolledAt ? (
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 10 }}>
-                  Latest enrollment {new Date(r.enrolledAt).toLocaleDateString()}
-                </div>
-              ) : null}
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Link
+                  to={appPath(`/coach/students/${r.profileId}`)}
+                  style={{
+                    display: "inline-block",
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    background: GOLD,
+                    color: NAVY,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    textDecoration: "none",
+                  }}
+                >
+                  View practice
+                </Link>
+                {r.enrolledAt ? (
+                  <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+                    Latest enrollment {new Date(r.enrolledAt).toLocaleDateString()}
+                  </span>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

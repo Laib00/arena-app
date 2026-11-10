@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { ReflectionAnswersView, parseEvalSections } from "../SessionDebrief";
 import { formatAiText } from "../formatAiText";
-import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle } from "../theme";
+import { NAVY, GOLD, CREAM, ACCENT_TINT, inputStyle, ResponsiveStyles } from "../theme";
 import GradeBadge from "../components/GradeBadge";
 import PageHeader from "../components/PageHeader";
+import { appPath } from "../routes";
 import type { ConversationSession, Industry, UserProfile } from "../types/domain";
 
 type HistoryConversation = ConversationSession & {
@@ -54,30 +56,78 @@ export default function SessionHistory({
   profile,
   scope,
   industry,
+  traineeId = null,
+  embedded = false,
+  pageTitle,
   onBack,
   onSignOut,
   onContinue,
 }: {
   profile: UserProfile;
-  scope: "mine" | "team" | string;
+  scope: "mine" | "team" | "coach" | string;
   industry?: Industry;
+  /** When set (coach view), only show this trainee's sessions. */
+  traineeId?: string | null;
+  /** Render inside another shell (e.g. coach workspace) without PageHeader. */
+  embedded?: boolean;
+  pageTitle?: string;
   onBack: () => void;
   onSignOut: () => void;
   onContinue?: (conversation: HistoryConversation) => void;
 }) {
   const [conversations, setConversations] = useState<HistoryConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<HistoryDetail | null>(null);
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [traineeMeta, setTraineeMeta] = useState<{
+    full_name?: string | null;
+    email?: string | null;
+  } | null>(null);
+
+  const canAddNotes = scope === "team" || scope === "coach" || scope === "mine";
+  const isCoachReview = scope === "coach";
 
   useEffect(() => {
-    loadConversations();
-  }, [scope, profile.id, industry]);
+    void loadConversations();
+    setSelected(null);
+    setDetail(null);
+  }, [scope, profile.id, industry, traineeId]);
+
+  useEffect(() => {
+    if (scope !== "coach" || !traineeId) {
+      setTraineeMeta(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", traineeId)
+        .maybeSingle();
+      if (!cancelled) {
+        setTraineeMeta(
+          data
+            ? {
+                full_name: (data.full_name as string | null) ?? null,
+                email: (data.email as string | null) ?? null,
+              }
+            : null
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, traineeId]);
 
   async function loadConversations() {
     setLoading(true);
+    setLoadError(null);
     let query = supabase
       .from("conversations")
       .select("*, trainee:user_id(full_name, email)")
@@ -86,14 +136,23 @@ export default function SessionHistory({
     if (scope === "mine" && industry) {
       query = query.eq("industry", industry === "Property" ? "Property" : "FP");
     }
-    const { data } = await query;
-    setConversations(data || []);
+    if (scope === "coach" && traineeId) {
+      query = query.eq("user_id", traineeId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      setLoadError(error.message);
+      setConversations([]);
+    } else {
+      setConversations((data as HistoryConversation[]) || []);
+    }
     setLoading(false);
   }
 
   async function openConversation(conv: HistoryConversation) {
     setSelected(conv.id);
     setDetail(null);
+    setNoteError(null);
     const [{ data: messages }, { data: reports }, { data: notes }] = await Promise.all([
       supabase.from("messages").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: true }),
       supabase.from("coaching_reports").select("*").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(1),
@@ -106,16 +165,22 @@ export default function SessionHistory({
     });
   }
 
-  async function addManagerNote(conv: HistoryConversation) {
+  async function addNote(conv: HistoryConversation) {
     const text = newNote.trim();
     if (!text) return;
     setSavingNote(true);
-    await supabase.from("progress_notes").insert({
+    setNoteError(null);
+    const { error } = await supabase.from("progress_notes").insert({
       user_id: conv.user_id,
       author_id: profile.id,
       conversation_id: conv.id,
       note: text,
     });
+    if (error) {
+      setNoteError(error.message);
+      setSavingNote(false);
+      return;
+    }
     setNewNote("");
     await openConversation(conv);
     setSavingNote(false);
@@ -127,132 +192,320 @@ export default function SessionHistory({
   }
 
   const selectedConv = conversations.find((c) => c.id === selected);
+  const traineeLabel =
+    traineeMeta?.full_name ||
+    traineeMeta?.email ||
+    conversations[0]?.trainee?.full_name ||
+    conversations[0]?.trainee?.email ||
+    selectedConv?.trainee?.full_name ||
+    selectedConv?.trainee?.email ||
+    null;
 
-  return (
-    <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
-      <PageHeader
-        brand="back"
-        onHome={onBack}
-        title={scope === "mine" ? "My History" : "Team Dashboard"}
-        actions={
-          <>
-            <button type="button" onClick={onBack} className="arena-topbar-link">Home</button>
-            <button type="button" onClick={onSignOut} className="arena-topbar-link">Sign Out</button>
-          </>
-        }
-      />
+  const title =
+    pageTitle ||
+    (scope === "mine"
+      ? "My History"
+      : scope === "coach"
+        ? traineeLabel
+          ? `Practice · ${traineeLabel}`
+          : "Student practice"
+        : "Team Dashboard");
 
-      <div className={`arena-history-layout${selected ? " has-selection" : ""}`}>
-        <div className="arena-history-list">
-          {loading ? (
-            <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>Loading...</div>
-          ) : conversations.length === 0 ? (
-            <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>No sessions recorded yet.</div>
-          ) : (
-            conversations.map((c) => (
-              <div
-                key={c.id}
+  const notesHeading = isCoachReview ? "Coach remarks" : "Progress Notes";
+  const notesPlaceholder = isCoachReview
+    ? "Write a remark for this student…"
+    : "Add a note about this trainee's session...";
+
+  const layout = (
+    <div className={`arena-history-layout${selected ? " has-selection" : ""}`}>
+      <div className="arena-history-list">
+        {loading ? (
+          <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>Loading...</div>
+        ) : loadError ? (
+          <div style={{ padding: 20, fontSize: 13, color: "#7A2E3A" }}>{loadError}</div>
+        ) : conversations.length === 0 ? (
+          <div style={{ padding: 20, fontSize: 13, color: "#9CA3AF" }}>
+            {isCoachReview
+              ? "This student has no practice sessions yet."
+              : "No sessions recorded yet."}
+          </div>
+        ) : (
+          conversations.map((c) => (
+            <div
+              key={c.id}
+              style={{
+                padding: "14px 18px",
+                borderBottom: "1px solid #F0EEE7",
+                background: selected === c.id ? ACCENT_TINT : "#fff",
+              }}
+            >
+              <button
+                onClick={() => void openConversation(c)}
                 style={{
-                  padding: "14px 18px", borderBottom: "1px solid #F0EEE7",
-                  background: selected === c.id ? ACCENT_TINT : "#fff",
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
                 }}
               >
-                <button
-                  onClick={() => openConversation(c)}
-                  style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 13.5, color: NAVY }}>{c.trainee?.full_name || c.trainee?.email || "Unknown trainee"}</div>
-                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
-                    {c.client_name} <GradeBadge grade={c.client_grade || "Medium"} /> · {c.industry}
-                    {!c.ended_at && <span style={{ color: GOLD, fontWeight: 700 }}> · Open</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{c.started_at ? new Date(c.started_at).toLocaleString() : ""}</div>
-                </button>
-                {!c.ended_at && scope === "mine" && onContinue && (
-                  <button
-                    onClick={() => onContinue(c)}
-                    style={{ marginTop: 8, padding: "6px 12px", borderRadius: 6, border: "none", background: GOLD, color: NAVY, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                  >
-                    Continue this session
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="arena-history-detail">
-          {!selectedConv ? (
-            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Select a session to review it.</div>
-          ) : !detail ? (
-            <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading session...</div>
-          ) : (
-            <div style={{ maxWidth: 700 }}>
-              <button type="button" className="arena-history-back-mobile" onClick={backToSessionList}>
-                <ArrowLeft size={15} /> Back to sessions
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: NAVY }}>
+                  {isCoachReview && traineeId
+                    ? c.client_name || "Session"
+                    : c.trainee?.full_name || c.trainee?.email || "Unknown trainee"}
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                  {isCoachReview && traineeId ? (
+                    <>
+                      <GradeBadge grade={c.client_grade || "Medium"} /> · {c.industry}
+                    </>
+                  ) : (
+                    <>
+                      {c.client_name} <GradeBadge grade={c.client_grade || "Medium"} /> · {c.industry}
+                    </>
+                  )}
+                  {!c.ended_at && (
+                    <span style={{ color: GOLD, fontWeight: 700 }}> · Open</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                  {c.started_at ? new Date(c.started_at).toLocaleString() : ""}
+                </div>
               </button>
-              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, marginBottom: 4, wordBreak: "break-word" }}>
-                {selectedConv.trainee?.full_name || selectedConv.trainee?.email} — {selectedConv.client_name}
-              </h2>
-              <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
-                {selectedConv.industry} · {selectedConv.aim} · {selectedConv.setting} · <GradeBadge grade={selectedConv.client_grade || "Medium"} />
-              </p>
+              {!c.ended_at && scope === "mine" && onContinue && (
+                <button
+                  onClick={() => onContinue(c)}
+                  style={{
+                    marginTop: 8,
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: GOLD,
+                    color: NAVY,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Continue this session
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Transcript</div>
-              <div className="arena-history-transcript">
-                {detail.messages.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "#9CA3AF" }}>No messages recorded.</div>
-                ) : (
-                  detail.messages.map((m) => (
-                    <div key={m.id} style={{ marginBottom: 10, fontSize: 13.5 }}>
-                      <span style={{ fontWeight: 700, color: m.role === "agent" ? NAVY : "#B5502F" }}>
-                        {m.role === "agent" ? selectedConv.trainee?.full_name || "Agent" : selectedConv.client_name}:
-                      </span>{" "}
-                      {m.content}
-                    </div>
-                  ))
-                )}
+      <div className="arena-history-detail">
+        {!selectedConv ? (
+          <div style={{ color: "#9CA3AF", fontSize: 14 }}>Select a session to review it.</div>
+        ) : !detail ? (
+          <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading session...</div>
+        ) : (
+          <div style={{ maxWidth: 700 }}>
+            <button type="button" className="arena-history-back-mobile" onClick={backToSessionList}>
+              <ArrowLeft size={15} /> Back to sessions
+            </button>
+            <h2
+              style={{
+                fontFamily: "Georgia, serif",
+                fontSize: 20,
+                marginBottom: 4,
+                wordBreak: "break-word",
+              }}
+            >
+              {selectedConv.trainee?.full_name || selectedConv.trainee?.email} —{" "}
+              {selectedConv.client_name}
+            </h2>
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
+              {selectedConv.industry} · {selectedConv.aim} · {selectedConv.setting} ·{" "}
+              <GradeBadge grade={selectedConv.client_grade || "Medium"} />
+            </p>
+
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Transcript
+            </div>
+            <div className="arena-history-transcript">
+              {detail.messages.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#9CA3AF" }}>No messages recorded.</div>
+              ) : (
+                detail.messages.map((m) => (
+                  <div key={m.id} style={{ marginBottom: 10, fontSize: 13.5 }}>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: m.role === "agent" ? NAVY : "#B5502F",
+                      }}
+                    >
+                      {m.role === "agent"
+                        ? selectedConv.trainee?.full_name || "Agent"
+                        : selectedConv.client_name}
+                      :
+                    </span>{" "}
+                    {m.content}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Reflection (before client feedback)
+            </div>
+            <ReflectionAnswersView value={detail.report?.reflection ?? null} />
+
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Client feedback
+            </div>
+            {detail.report?.client_feedback ? (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E2DFD6",
+                  borderRadius: 10,
+                  padding: 16,
+                  marginBottom: 24,
+                  whiteSpace: "pre-wrap",
+                  fontSize: 13.5,
+                }}
+              >
+                {formatAiText(String(detail.report.client_feedback))}
               </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>
+                No client feedback for this session.
+              </div>
+            )}
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection (before client feedback)</div>
-              <ReflectionAnswersView value={detail.report?.reflection ?? null} />
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Reflection update (after client feedback)
+            </div>
+            <ReflectionAnswersView value={detail.report?.reflection_update ?? null} />
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Client feedback</div>
-              {detail.report?.client_feedback ? (
-                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {formatAiText(String(detail.report.client_feedback))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No client feedback for this session.</div>
-              )}
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Session facts
+            </div>
+            {detail.report?.facts ? (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E2DFD6",
+                  borderRadius: 10,
+                  padding: 16,
+                  marginBottom: 24,
+                  whiteSpace: "pre-wrap",
+                  fontSize: 13.5,
+                }}
+              >
+                {formatAiText(String(detail.report.facts))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
+            )}
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Reflection update (after client feedback)</div>
-              <ReflectionAnswersView value={detail.report?.reflection_update ?? null} />
-
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Session facts</div>
-              {detail.report?.facts ? (
-                <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24, whiteSpace: "pre-wrap", fontSize: 13.5 }}>
-                  {formatAiText(String(detail.report.facts))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 24 }}>No facts recorded.</div>
-              )}
-
-              {detail.report && (detail.report.overall || detail.report.strengths || detail.report.areas_to_improve || detail.report.key_recommendation) && (
+            {detail.report &&
+              (detail.report.overall ||
+                detail.report.strengths ||
+                detail.report.areas_to_improve ||
+                detail.report.key_recommendation) && (
                 <>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>AI suggestions</div>
-                  <div style={{ background: "#fff", border: "1px solid #E2DFD6", borderRadius: 10, padding: 16, marginBottom: 24 }}>
-                    {(["overall", "strengths", "areas_to_improve", "client_fit", "key_recommendation"] as const).map((f) =>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#6B7280",
+                      textTransform: "uppercase",
+                      marginBottom: 8,
+                    }}
+                  >
+                    AI analysis
+                  </div>
+                  <div
+                    style={{
+                      background: "#fff",
+                      border: "1px solid #E2DFD6",
+                      borderRadius: 10,
+                      padding: 16,
+                      marginBottom: 24,
+                    }}
+                  >
+                    {(
+                      [
+                        "overall",
+                        "strengths",
+                        "areas_to_improve",
+                        "client_fit",
+                        "key_recommendation",
+                      ] as const
+                    ).map((f) =>
                       detail.report?.[f] ? (
                         <div key={f} style={{ marginBottom: 12 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>{f.replace(/_/g, " ")}</div>
-                          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{formatAiText(String(detail.report[f]))}</div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: GOLD,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {f.replace(/_/g, " ")}
+                          </div>
+                          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>
+                            {formatAiText(String(detail.report[f]))}
+                          </div>
                         </div>
                       ) : null
                     )}
                     {relatedTopicsFromReport(detail.report) && (
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: "uppercase" }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: GOLD,
+                            textTransform: "uppercase",
+                          }}
+                        >
                           Related coach topics
                         </div>
                         <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>
@@ -264,40 +517,139 @@ export default function SessionHistory({
                 </>
               )}
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", marginBottom: 8 }}>Progress Notes</div>
-              <div className="arena-notes-row">
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a note about this trainee's session..."
-                  rows={2}
-                  style={{ ...inputStyle, flex: 1, resize: "vertical", fontFamily: "inherit" }}
-                />
-                <button
-                  onClick={() => addManagerNote(selectedConv)}
-                  disabled={savingNote || !newNote.trim()}
-                  style={{ padding: "0 18px", borderRadius: 8, border: "none", background: GOLD, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+            {canAddNotes && (
+              <>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#6B7280",
+                    textTransform: "uppercase",
+                    marginBottom: 8,
+                  }}
                 >
-                  Add
-                </button>
-              </div>
-              {detail.notes.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#9CA3AF" }}>No notes yet.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {detail.notes.map((n) => (
-                    <div key={n.id} style={{ borderLeft: `3px solid ${GOLD}`, paddingLeft: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{n.author?.full_name || n.author?.email}</div>
-                      <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>{new Date(n.created_at).toLocaleString()}</div>
-                      <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{n.note}</div>
-                    </div>
-                  ))}
+                  {notesHeading}
                 </div>
-              )}
-            </div>
-          )}
+                <div className="arena-notes-row">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder={notesPlaceholder}
+                    rows={2}
+                    style={{ ...inputStyle, flex: 1, resize: "vertical", fontFamily: "inherit" }}
+                  />
+                  <button
+                    onClick={() => void addNote(selectedConv)}
+                    disabled={savingNote || !newNote.trim()}
+                    style={{
+                      padding: "0 18px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: GOLD,
+                      color: NAVY,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {savingNote ? "Saving…" : isCoachReview ? "Save remark" : "Add"}
+                  </button>
+                </div>
+                {noteError && (
+                  <div style={{ fontSize: 13, color: "#7A2E3A", marginBottom: 10 }}>{noteError}</div>
+                )}
+                {detail.notes.length === 0 ? (
+                  <div style={{ fontSize: 13, color: "#9CA3AF" }}>
+                    {isCoachReview ? "No remarks yet." : "No notes yet."}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {detail.notes.map((n) => (
+                      <div key={n.id} style={{ borderLeft: `3px solid ${GOLD}`, paddingLeft: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>
+                          {n.author?.full_name || n.author?.email}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>
+                          {new Date(n.created_at).toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{n.note}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div style={{ fontFamily: "-apple-system, sans-serif" }}>
+        <ResponsiveStyles />
+        {isCoachReview && (
+          <div style={{ marginBottom: 16 }}>
+            <Link
+              to={appPath("/coach/students")}
+              style={{
+                fontSize: 13,
+                color: "#6B7280",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              ← Students
+            </Link>
+            <h1
+              style={{
+                fontFamily: "Georgia, serif",
+                fontSize: 26,
+                margin: "8px 0 4px",
+                color: NAVY,
+              }}
+            >
+              {title}
+            </h1>
+            <p style={{ fontSize: 14, color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+              Review the chat, AI analysis, and leave remarks for this student.
+            </p>
+          </div>
+        )}
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #E2DFD6",
+            borderRadius: 12,
+            overflow: "hidden",
+            minHeight: 480,
+          }}
+        >
+          {layout}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: CREAM, fontFamily: "-apple-system, sans-serif" }}>
+      <PageHeader
+        brand="back"
+        onHome={onBack}
+        title={title}
+        actions={
+          <>
+            <button type="button" onClick={onBack} className="arena-topbar-link">
+              Home
+            </button>
+            <button type="button" onClick={onSignOut} className="arena-topbar-link">
+              Sign Out
+            </button>
+          </>
+        }
+      />
+      {layout}
     </div>
   );
 }

@@ -1320,7 +1320,12 @@ export default function App() {
       return <Navigate to={appPath()} replace />;
     }
     return (
-      <CoachArea profileId={profile.id} fullName={profile.full_name} onSignOut={() => supabase.auth.signOut()} />
+      <CoachArea
+        profileId={profile.id}
+        fullName={profile.full_name}
+        email={profile.email}
+        onSignOut={() => supabase.auth.signOut()}
+      />
     );
   }
 
