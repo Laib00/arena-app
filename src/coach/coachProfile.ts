@@ -65,21 +65,24 @@ export function parseStringList(raw: unknown): string[] {
 export function parseCredentials(raw: unknown): CoachCredential[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((item, i) => {
+    .map((item, i): CoachCredential | null => {
       if (!item || typeof item !== "object") return null;
       const o = item as Record<string, unknown>;
       const title = String(o.title || "").trim();
       if (!title) return null;
-      return {
+      const cred: CoachCredential = {
         id: String(o.id || `cred-${i}-${title}`),
         title,
         institution: String(o.institution || "").trim(),
-        year: o.year != null ? String(o.year).trim() : "",
-        link: o.link != null ? String(o.link).trim() : "",
-        verified: Boolean(o.verified),
-      } satisfies CoachCredential;
+      };
+      const year = o.year != null ? String(o.year).trim() : "";
+      if (year) cred.year = year;
+      const link = o.link != null ? String(o.link).trim() : "";
+      if (link) cred.link = link;
+      if (Boolean(o.verified)) cred.verified = true;
+      return cred;
     })
-    .filter((c): c is CoachCredential => Boolean(c));
+    .filter((c): c is CoachCredential => c !== null);
 }
 
 /** Split legacy specialties chips into industry vs practice skills. */
