@@ -8,6 +8,7 @@ type TopBarProps = {
   onSignOut: () => void;
   onTeamView: () => void;
   onHistoryView: () => void;
+  onPracticeRoomView?: () => void;
   onProfileView: () => void;
   onHomeView: () => void;
   onMenuToggle: () => void;
@@ -19,6 +20,7 @@ export default function TopBar({
   onSignOut,
   onTeamView,
   onHistoryView,
+  onPracticeRoomView,
   onProfileView,
   onHomeView,
   onMenuToggle,
@@ -49,6 +51,11 @@ export default function TopBar({
 
       <div className="arena-topbar-actions arena-topbar-desktop-nav">
         <button type="button" onClick={onProgressClick} className="arena-topbar-link">Progress</button>
+        {profile?.role !== "coach" && profile?.role !== "manager" && onPracticeRoomView && (
+          <button type="button" onClick={onPracticeRoomView} className="arena-topbar-link">
+            Practice Room
+          </button>
+        )}
         <button type="button" onClick={onHistoryView} className="arena-topbar-link">History</button>
         {profile?.role === "manager" && (
           <button type="button" onClick={onTeamView} className="arena-topbar-link">Team</button>

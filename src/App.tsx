@@ -53,6 +53,7 @@ import SetupScreen from "./pages/SetupScreen";
 import ChatScreen from "./pages/ChatScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import SessionHistory from "./pages/SessionHistory";
+import PracticeRoom from "./pages/PracticeRoom";
 import CoachArea from "./coach/CoachArea";
 import type {
   AgentProfile,
@@ -249,6 +250,7 @@ export default function App() {
   const goHistory = () => navigate(appPath("/history"));
   const goProfile = () => navigate(appPath("/profile"));
   const goTeam = () => navigate(appPath("/team"));
+  const goPracticeRoom = () => navigate(appPath("/practice-room"));
   const goChat = (id: string) => navigate(appPath(`/chat/${id}`));
 
   const chatMatch = matchPath({ path: `${APP_BASE}/chat/:conversationId`, end: true }, location.pathname);
@@ -257,6 +259,9 @@ export default function App() {
   const isHistory = Boolean(matchPath({ path: `${APP_BASE}/history`, end: true }, location.pathname));
   const isProfile = Boolean(matchPath({ path: `${APP_BASE}/profile`, end: true }, location.pathname));
   const isTeam = Boolean(matchPath({ path: `${APP_BASE}/team`, end: true }, location.pathname));
+  const isPracticeRoom = Boolean(
+    matchPath({ path: `${APP_BASE}/practice-room`, end: true }, location.pathname)
+  );
 
   const coachFromJwt = jwtSaysCoach(session);
   const coachIntentPending =
@@ -1367,6 +1372,26 @@ export default function App() {
     );
   }
 
+  if (isPracticeRoom) {
+    if (profile?.role === "coach" || profile?.role === "manager") {
+      return <Navigate to={appPath()} replace />;
+    }
+    return (
+      <>
+        <ResponsiveStyles />
+        <PracticeRoom
+          profile={profile}
+          onBack={goHome}
+          onSignOut={() => supabase.auth.signOut()}
+          onPractice={(libraryId) => {
+            setSelectedRagLibraryId(libraryId);
+            goHome();
+          }}
+        />
+      </>
+    );
+  }
+
   if (isProfile) {
     return (
       <>
@@ -1421,6 +1446,7 @@ export default function App() {
           onHomeView={() => { goHome(); setSidebarOpen(false); }}
           onProfileView={() => { goProfile(); setSidebarOpen(false); }}
           onHistoryView={() => { goHistory(); setSidebarOpen(false); }}
+          onPracticeRoomView={() => { goPracticeRoom(); setSidebarOpen(false); }}
           onTeamView={() => { goTeam(); setSidebarOpen(false); }}
           onSignOut={() => supabase.auth.signOut()}
         />
@@ -1432,6 +1458,7 @@ export default function App() {
             onSignOut={() => supabase.auth.signOut()}
             onTeamView={goTeam}
             onHistoryView={goHistory}
+            onPracticeRoomView={goPracticeRoom}
             onProfileView={goProfile}
             onHomeView={goHome}
             onProgressClick={() => {

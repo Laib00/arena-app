@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Users, Trash2, LogOut } from "lucide-react";
+import { X, Users, Trash2, LogOut, BookOpen } from "lucide-react";
 import { NAVY, GOLD } from "../theme";
 import { industryLabel } from "../agentWorkspaces";
 import GradeBadge from "./GradeBadge";
@@ -17,6 +17,7 @@ type SidebarProps = {
   onHomeView?: () => void;
   onProfileView: () => void;
   onHistoryView: () => void;
+  onPracticeRoomView?: () => void;
   onTeamView: () => void;
   onSignOut: () => void;
 };
@@ -33,6 +34,7 @@ export default function Sidebar({
   onHomeView,
   onProfileView,
   onHistoryView,
+  onPracticeRoomView,
   onTeamView,
   onSignOut,
 }: SidebarProps) {
@@ -151,6 +153,11 @@ export default function Sidebar({
         <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onProfileView)}>
           Profile
         </button>
+        {profile?.role !== "coach" && profile?.role !== "manager" && onPracticeRoomView && (
+          <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onPracticeRoomView)}>
+            <BookOpen size={14} /> My Practice Room
+          </button>
+        )}
         <button type="button" className="arena-sidebar-nav-btn" onClick={() => navAction(onHistoryView)}>
           My History
         </button>
