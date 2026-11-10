@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
-import { MoreHorizontal, Upload } from "lucide-react";
+import { MoreHorizontal, Pencil, Upload } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { APP_BASE, appPath } from "../routes";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
@@ -386,7 +386,15 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   const [addMode, setAddMode] = useState<"upload" | "paste">("upload");
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsOk, setDetailsOk] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const promptedUntitledRef = useRef(false);
 
   const loadDocuments = useCallback(async () => {
     setDocsLoading(true);
@@ -612,6 +620,21 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    promptedUntitledRef.current = false;
+  }, [libraryId]);
+
+  useEffect(() => {
+    if (!lib || promptedUntitledRef.current || editingDetails) return;
+    if (lib.title.trim() === "Untitled library") {
+      promptedUntitledRef.current = true;
+      setEditTitle(lib.title);
+      setEditDescription(lib.description || "");
+      setEditingDetails(true);
+      window.setTimeout(() => titleInputRef.current?.focus(), 0);
+    }
+  }, [lib, editingDetails]);
 
   async function ingestFile(file: File, titleOverride?: string) {
     setUploading(true);
@@ -839,6 +862,48 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     navigate(appPath("/coach/libraries"));
   }
 
+  function startEditDetails() {
+    if (!lib) return;
+    setEditTitle(lib.title);
+    setEditDescription(lib.description || "");
+    setDetailsError(null);
+    setDetailsOk(null);
+    setEditingDetails(true);
+    setMenuOpen(false);
+    window.setTimeout(() => titleInputRef.current?.focus(), 0);
+  }
+
+  function cancelEditDetails() {
+    setEditingDetails(false);
+    setDetailsError(null);
+  }
+
+  async function handleSaveDetails(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!lib) return;
+    const title = editTitle.trim();
+    if (!title) {
+      setDetailsError("Give this library a name.");
+      return;
+    }
+    setSavingDetails(true);
+    setDetailsError(null);
+    setDetailsOk(null);
+    const description = editDescription.trim() || null;
+    const { error: uErr } = await supabase
+      .from("knowledge_libraries")
+      .update({ title, description })
+      .eq("id", lib.id);
+    setSavingDetails(false);
+    if (uErr) {
+      setDetailsError(uErr.message);
+      return;
+    }
+    setLib({ ...lib, title, description });
+    setEditingDetails(false);
+    setDetailsOk("Library details saved.");
+  }
+
   if (loading) {
     return <div style={{ color: "#6B7280" }}>Loading…</div>;
   }
@@ -1046,25 +1111,82 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
           marginBottom: 8,
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <h1 style={{ fontFamily: "Georgia, serif", fontSize: 28, margin: 0, color: NAVY }}>{lib.title}</h1>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: GOLD,
-                background: "#FFF4EC",
-                padding: "3px 10px",
-                borderRadius: 999,
-              }}
-            >
-              {statusLabel}
-            </span>
-          </div>
-          <p style={{ margin: "6px 0 0", fontSize: 14, color: "#6B7280" }}>
-            {lib.description || "Coaching materials for your students."}
-          </p>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {editingDetails ? (
+            <form onSubmit={(e) => void handleSaveDetails(e)} style={{ maxWidth: 560 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 6 }}>
+                Library name
+              </label>
+              <input
+                ref={titleInputRef}
+                style={{ ...inputStyle, marginBottom: 12, fontFamily: "Georgia, serif", fontSize: 20, fontWeight: 700 }}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="e.g. Buyer Consultation Playbook"
+                required
+              />
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 6 }}>
+                Description <span style={{ fontWeight: 500, color: "#9CA3AF" }}>(optional)</span>
+              </label>
+              <textarea
+                style={{ ...inputStyle, minHeight: 72, resize: "vertical", marginBottom: 12 }}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="What this playbook is for"
+              />
+              {detailsError && (
+                <div style={{ marginBottom: 10, color: "#7A2E3A", fontSize: 13 }}>{detailsError}</div>
+              )}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="submit"
+                  disabled={savingDetails}
+                  style={{ ...btnPrimary, color: "#fff", opacity: savingDetails ? 0.7 : 1 }}
+                >
+                  {savingDetails ? "Saving…" : "Save"}
+                </button>
+                <button type="button" onClick={cancelEditDetails} disabled={savingDetails} style={btnSecondary}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h1 style={{ fontFamily: "Georgia, serif", fontSize: 28, margin: 0, color: NAVY }}>{lib.title}</h1>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: GOLD,
+                    background: "#FFF4EC",
+                    padding: "3px 10px",
+                    borderRadius: 999,
+                  }}
+                >
+                  {statusLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={startEditDetails}
+                  style={{
+                    ...btnSecondary,
+                    padding: "6px 10px",
+                    fontSize: 12,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Pencil size={13} aria-hidden />
+                  Rename
+                </button>
+              </div>
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "#6B7280" }}>
+                {lib.description || "Coaching materials for your students."}
+              </p>
+            </>
+          )}
         </div>
         <div style={{ position: "relative" }}>
           <button
@@ -1095,6 +1217,25 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                 padding: 6,
               }}
             >
+              <button
+                type="button"
+                onClick={startEditDetails}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: "none",
+                  background: "transparent",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  color: NAVY,
+                }}
+              >
+                Rename / edit details
+              </button>
               {lib.status !== "active" && (
                 <button
                   type="button"
@@ -1170,8 +1311,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
         </div>
       </div>
 
-      {(activateOk || activateError || embedOk || embedError || deleteError) && (
+      {(activateOk || activateError || embedOk || embedError || deleteError || detailsOk) && (
         <div style={{ marginBottom: 12, fontSize: 13 }}>
+          {detailsOk && <div style={{ color: "#2F5233" }}>{detailsOk}</div>}
           {activateOk && <div style={{ color: "#2F5233" }}>{activateOk}</div>}
           {activateError && <div style={{ color: "#7A2E3A" }}>{activateError}</div>}
           {embedOk && <div style={{ color: "#2F5233" }}>{embedOk}</div>}
