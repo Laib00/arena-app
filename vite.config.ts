@@ -58,7 +58,7 @@ function localCoachIngestApi(): Plugin {
   };
 }
 
-/** Local /api/embeddings — Gemini text-embedding-004 (768). */
+/** Local /api/embeddings — Gemini gemini-embedding-001 (768). */
 function localEmbeddingsApi(): Plugin {
   return {
     name: "local-embeddings-api",

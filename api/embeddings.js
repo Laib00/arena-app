@@ -1,5 +1,5 @@
 /**
- * POST /api/embed — single text → embedding vector (Gemini text-embedding-004, 768 dims).
+ * POST /api/embed — single text → embedding vector (Gemini gemini-embedding-001, 768 dims).
  * Requires GEMINI_API_KEY (same as chat). Never expose key to browser.
  */
 export default async function handler(req, res) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Request must include non-empty 'text'." });
   }
 
-  const model = process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004";
+  const model = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`;
 
   try {

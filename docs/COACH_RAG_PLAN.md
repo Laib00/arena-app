@@ -151,6 +151,7 @@ Validate MIME + extension; reject unknown types.
 
 ## 8. References
 
+- [`docs/COACH_RAG_TECH_STACK.md`](./COACH_RAG_TECH_STACK.md) — **official tools & architecture** (Supabase, mammoth, pdf-parse, Gemini, APIs, env)
 - [`supabase/add_rag_and_coach.sql`](../supabase/add_rag_and_coach.sql) — tables, RLS, pgvector
 - [`supabase/phase3_rag.sql`](../supabase/phase3_rag.sql) — **run on Supabase** for Phase 3 (`match_knowledge_chunks`, `set_knowledge_chunk_embedding`)
 - [`docs/DATABASE_RAG_AND_COACH.md`](./DATABASE_RAG_AND_COACH.md) — entity design

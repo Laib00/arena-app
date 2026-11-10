@@ -3,7 +3,7 @@ import type { ChatMessage } from "./types/domain";
 
 const MAX_RAG_CTX_CHARS = 6000;
 
-/** Call local / Vercel API — returns 768 floats for Gemini text-embedding-004. */
+/** Call local / Vercel API — returns 768 floats (default model gemini-embedding-001). */
 export async function fetchEmbedding(text: string): Promise<number[]> {
   const res = await fetch("/api/embeddings", {
     method: "POST",
