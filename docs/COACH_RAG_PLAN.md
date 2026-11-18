@@ -131,6 +131,14 @@ Validate MIME + extension; reject unknown types.
 - [x] Coach UI: **`library_enrollments`** (enroll trainees to a library by email, list/remove) — see `LibraryDetail` in `src/coach/CoachArea.tsx`.
 - [ ] **`training_assignments`** + link sessions via **`assignment_conversations`** (structured “homework” / assignment flow — not the same as library enrollment).
 
+### Phase 5a — YouTube URL → transcript (no video storage)
+
+- [x] **`POST /api/coach/ingest-youtube`** — JSON `library_id`, `url`, optional `title`; `Authorization: Bearer` (dev: `vite.config.ts` → `server/coachIngestYoutube.mjs`).
+- [x] Fetches **public captions** via `youtube-transcript`; chunks like paste/upload; `knowledge_documents.source_type = url`, `source_url` set.
+- [x] Coach UI — **YouTube link** tab in library materials (`CoachArea.tsx`).
+- [ ] **Production:** wire the same route on VPS `server.mjs` next to `/api/coach/ingest`.
+- [ ] **Phase 5b (later):** upload video/audio + async transcription (no long-term video in Storage).
+
 ---
 
 ## 6. Security checklist

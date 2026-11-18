@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
-import { MoreHorizontal, Pencil, Upload } from "lucide-react";
+import { Link2, MoreHorizontal, Pencil, Upload } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { APP_BASE, appPath } from "../routes";
 import { NAVY, GOLD, CREAM, inputStyle } from "../theme";
@@ -32,6 +32,7 @@ type KnowledgeDocumentRow = {
   id: string;
   title: string;
   source_type: string;
+  source_url: string | null;
   storage_path: string | null;
   mime_type: string | null;
   processing_status: string;
@@ -386,7 +387,12 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
   const [docBusyId, setDocBusyId] = useState<string | null>(null);
   const [docsActionError, setDocsActionError] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<"materials" | "students">("materials");
-  const [addMode, setAddMode] = useState<"upload" | "paste">("upload");
+  const [addMode, setAddMode] = useState<"upload" | "paste" | "youtube">("upload");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeBusy, setYoutubeBusy] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeOk, setYoutubeOk] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
@@ -404,7 +410,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     setDocsLoading(true);
     const { data, error: dErr } = await supabase
       .from("knowledge_documents")
-      .select("id, title, source_type, storage_path, mime_type, processing_status, error_message, created_at, metadata")
+      .select(
+        "id, title, source_type, source_url, storage_path, mime_type, processing_status, error_message, created_at, metadata"
+      )
       .eq("library_id", libraryId)
       .order("created_at", { ascending: false });
     if (dErr) {
@@ -723,6 +731,78 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     await ingestFile(uploadFile);
   }
 
+  async function handleYoutubeIngest(e: React.FormEvent) {
+    e.preventDefault();
+    const url = youtubeUrl.trim();
+    if (!url) return;
+    setYoutubeBusy(true);
+    setYoutubeError(null);
+    setYoutubeOk(null);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setYoutubeError("Not signed in.");
+      setYoutubeBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/coach/ingest-youtube", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          library_id: libraryId,
+          url,
+          caption_lang: "en",
+          ...(youtubeTitle.trim() ? { title: youtubeTitle.trim() } : {}),
+        }),
+      });
+      const raw = await res.text();
+      let json: { error?: string; chunk_count?: number } = {};
+      if (raw) {
+        try {
+          json = JSON.parse(raw) as typeof json;
+        } catch {
+          setYoutubeError(raw.slice(0, 200) || `Import failed (${res.status}, not JSON).`);
+          setYoutubeBusy(false);
+          return;
+        }
+      } else if (!res.ok) {
+        setYoutubeError(
+          `Import failed (${res.status}, empty response). Is the dev server running /api/coach/ingest-youtube?`
+        );
+        setYoutubeBusy(false);
+        return;
+      }
+      if (!res.ok) {
+        setYoutubeError(json.error || `Import failed (${res.status})`);
+        setYoutubeBusy(false);
+        return;
+      }
+      setYoutubeUrl("");
+      setYoutubeTitle("");
+      setYoutubeOk("YouTube transcript imported. Preparing for practice…");
+      await load();
+      const prepared = await embedMissingChunks();
+      if (prepared.ok) {
+        setYoutubeOk(
+          prepared.count > 0
+            ? "Transcript imported. Material is ready for practice."
+            : "Transcript imported."
+        );
+      } else {
+        setYoutubeError(prepared.error || "Imported, but preparing for practice failed. Try again.");
+        setYoutubeOk(null);
+      }
+    } catch (err) {
+      setYoutubeError(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setYoutubeBusy(false);
+    }
+  }
+
   async function handlePasteSave(e: React.FormEvent) {
     e.preventDefault();
     const body = pasteBody.trim();
@@ -995,7 +1075,13 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
         marginBottom: 16,
       }}
     >
-      {(["upload", "paste"] as const).map((m) => (
+      {(
+        [
+          ["upload", "Upload file"],
+          ["paste", "Paste text"],
+          ["youtube", "YouTube link"],
+        ] as const
+      ).map(([m, label]) => (
         <button
           key={m}
           type="button"
@@ -1012,7 +1098,7 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
             color: addMode === m ? GOLD : "#6B7280",
           }}
         >
-          {m === "upload" ? "Upload file" : "Paste text"}
+          {label}
         </button>
       ))}
     </div>
@@ -1020,7 +1106,6 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
 
   const uploadPanel = (
     <div>
-      {modeToggle}
       <div
         onDragEnter={(e) => {
           e.preventDefault();
@@ -1107,9 +1192,38 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
     </div>
   );
 
+  const youtubePanel = (
+    <form onSubmit={handleYoutubeIngest}>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6B7280", lineHeight: 1.45 }}>
+        Paste a public YouTube URL. We import the <strong>English caption transcript</strong> when YouTube provides it
+        (not auto-translated tracks). The video is not stored.
+      </p>
+      <input
+        style={{ ...inputStyle, marginBottom: 10 }}
+        placeholder="Optional title (blank = YouTube video title)"
+        value={youtubeTitle}
+        onChange={(e) => setYoutubeTitle(e.target.value)}
+      />
+      <input
+        style={{ ...inputStyle, marginBottom: 12 }}
+        placeholder="https://www.youtube.com/watch?v=…"
+        value={youtubeUrl}
+        onChange={(e) => setYoutubeUrl(e.target.value)}
+        required
+      />
+      <button type="submit" disabled={youtubeBusy} style={{ ...btnPrimary, color: "#fff", opacity: youtubeBusy ? 0.7 : 1 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Link2 size={16} aria-hidden />
+          {youtubeBusy ? "Importing transcript…" : "Import from YouTube"}
+        </span>
+      </button>
+      {youtubeOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{youtubeOk}</div>}
+      {youtubeError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{youtubeError}</div>}
+    </form>
+  );
+
   const pastePanel = (
     <form onSubmit={handlePasteSave}>
-      {modeToggle}
       <input
         style={{ ...inputStyle, marginBottom: 10 }}
         placeholder="Document title"
@@ -1129,6 +1243,13 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
       {pasteOk && <div style={{ marginTop: 12, color: "#2F5233", fontSize: 13 }}>{pasteOk}</div>}
       {pasteError && <div style={{ marginTop: 12, color: "#7A2E3A", fontSize: 13 }}>{pasteError}</div>}
     </form>
+  );
+
+  const addMaterialPanel = (
+    <>
+      {modeToggle}
+      {addMode === "upload" ? uploadPanel : addMode === "paste" ? pastePanel : youtubePanel}
+    </>
   );
 
   return (
@@ -1370,9 +1491,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                     Add your first material
                   </h2>
                   <p style={{ margin: "0 0 16px", fontSize: 14, color: "#6B7280" }}>
-                    Upload a document or paste your coaching notes.
+                    Upload a document, paste notes, or import a YouTube transcript.
                   </p>
-                  {addMode === "upload" ? uploadPanel : pastePanel}
+                  {addMaterialPanel}
                 </div>
               ) : (
                 <>
@@ -1387,9 +1508,9 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                   >
                     <div style={{ fontWeight: 700, marginBottom: 4, color: NAVY }}>Add material</div>
                     <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6B7280" }}>
-                      Upload or paste more coaching content.
+                      Upload, paste, or add a YouTube transcript.
                     </p>
-                    {addMode === "upload" ? uploadPanel : pastePanel}
+                    {addMaterialPanel}
                   </div>
 
                   <div
@@ -1437,43 +1558,173 @@ function LibraryDetail({ profileId, libraryId }: { profileId: string; libraryId:
                       <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Loading documents…</p>
                     ) : (
                       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                        {documents.map((d) => (
-                          <li
-                            key={d.id}
-                            style={{
-                              border: "1px solid #EFEBE3",
-                              borderRadius: 10,
-                              padding: 12,
-                              marginBottom: 10,
-                              background: CREAM,
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                              <div>
-                                <div style={{ fontWeight: 600, color: NAVY }}>{d.title}</div>
-                                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
-                                  {d.source_type === "upload" ? "Uploaded" : "Pasted"}
-                                  {d.processing_status === "ready" ? " · Ready" : ` · ${d.processing_status}`}
+                        {documents.map((d) => {
+                          const expanded = expandedDocId === d.id;
+                          const chunks = docChunks[d.id];
+                          const chunkLoading = chunksLoadingDocId === d.id;
+                          const sourceLabel =
+                            d.source_type === "upload"
+                              ? "Uploaded"
+                              : d.source_type === "url"
+                                ? "YouTube transcript"
+                                : "Pasted";
+                          const embeddedInDoc = chunks?.filter((c) => c.embedding != null).length ?? 0;
+                          const previewText = chunks
+                            ? [...chunks]
+                                .sort((a, b) => a.chunk_index - b.chunk_index)
+                                .map((c) => c.content)
+                                .join(" ")
+                            : "";
+                          return (
+                            <li
+                              key={d.id}
+                              style={{
+                                border: "1px solid #EFEBE3",
+                                borderRadius: 10,
+                                padding: 12,
+                                marginBottom: 10,
+                                background: CREAM,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: NAVY }}>{d.title}</div>
+                                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                                    {sourceLabel}
+                                    {d.processing_status === "ready" ? " · Ready" : ` · ${d.processing_status}`}
+                                    {chunks?.length
+                                      ? ` · ${chunks.length} chunk${chunks.length === 1 ? "" : "s"}`
+                                      : d.processing_status === "ready"
+                                        ? " · transcript saved"
+                                        : ""}
+                                    {chunks?.length
+                                      ? embeddedInDoc >= chunks.length
+                                        ? " · embedded"
+                                        : ` · ${embeddedInDoc}/${chunks.length} embedded`
+                                      : null}
+                                    {d.source_type === "url" &&
+                                    d.metadata &&
+                                    typeof d.metadata === "object" &&
+                                    "caption_language" in d.metadata &&
+                                    d.metadata.caption_language
+                                      ? ` · captions: ${String(d.metadata.caption_language)}`
+                                      : null}
+                                  </div>
+                                  {d.source_type === "url" && d.source_url && !expanded ? (
+                                    <div
+                                      style={{
+                                        fontSize: 12,
+                                        color: "#9CA3AF",
+                                        marginTop: 6,
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: "min(100%, 420px)",
+                                      }}
+                                    >
+                                      {d.source_url}
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
+                                  {d.processing_status === "ready" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleDocExpand(d.id)}
+                                      style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, fontWeight: 700 }}
+                                    >
+                                      {expanded ? "Hide transcript" : "View transcript"}
+                                    </button>
+                                  ) : null}
+                                  {d.source_url ? (
+                                    <a
+                                      href={d.source_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        ...btnSecondary,
+                                        padding: "4px 10px",
+                                        fontSize: 12,
+                                        textDecoration: "none",
+                                      }}
+                                    >
+                                      Open video
+                                    </a>
+                                  ) : null}
+                                  {d.storage_path ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDownloadOriginalFile(d)}
+                                      style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}
+                                    >
+                                      Download
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    disabled={docBusyId === d.id}
+                                    onClick={() => void handleDeleteDocumentRow(d)}
+                                    style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
+                                  >
+                                    Delete
+                                  </button>
                                 </div>
                               </div>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {d.storage_path ? (
-                                  <button type="button" onClick={() => void handleDownloadOriginalFile(d)} style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}>
-                                    Download
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  disabled={docBusyId === d.id}
-                                  onClick={() => void handleDeleteDocumentRow(d)}
-                                  style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12, color: "#7A2E3A" }}
+                              {expanded ? (
+                                <div
+                                  style={{
+                                    marginTop: 12,
+                                    borderTop: "1px solid #EFEBE3",
+                                    paddingTop: 12,
+                                  }}
                                 >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
+                                  {chunkLoading ? (
+                                    <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Loading transcript…</p>
+                                  ) : chunks?.length ? (
+                                    <>
+                                      <p style={{ margin: "0 0 8px", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
+                                        This is the text imported for search and practice
+                                        {d.source_type === "url" ? " (from YouTube captions)" : ""}.
+                                      </p>
+                                      <pre
+                                        style={{
+                                          margin: "0 0 10px",
+                                          padding: 12,
+                                          borderRadius: 8,
+                                          border: "1px solid #E2DFD6",
+                                          background: "#fff",
+                                          fontSize: 12,
+                                          lineHeight: 1.55,
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                          maxHeight: 220,
+                                          overflow: "auto",
+                                          color: NAVY,
+                                          fontFamily: "inherit",
+                                        }}
+                                      >
+                                        {previewText.length > 8000
+                                          ? `${previewText.slice(0, 8000)}\n\n… (truncated in preview — use Export for full transcript)`
+                                          : previewText}
+                                      </pre>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDownloadChunksAsText(d)}
+                                        style={{ ...btnSecondary, padding: "4px 10px", fontSize: 12 }}
+                                      >
+                                        Export full transcript
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <p style={{ margin: 0, fontSize: 13, color: "#7A2E3A" }}>
+                                      No transcript chunks found. Try deleting and re-importing.
+                                    </p>
+                                  )}
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
