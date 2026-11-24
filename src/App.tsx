@@ -33,7 +33,7 @@ import {
   type SalesIndustry,
   type WorkspaceBag,
 } from "./agentWorkspaces";
-import { buildSystemPrompt } from "./prompts";
+import { buildGuideDrivenSystemPrompt, buildSystemPrompt, isGuidePersona } from "./prompts";
 import { callGemini } from "./api";
 import { saveProfileFields } from "./profileApi";
 import { computePracticeStreak } from "./streak";
@@ -63,6 +63,7 @@ import type {
   Challenge,
   ChatMessage,
   ConversationSession,
+  Grade,
   Industry,
   Persona,
   PracticePack,
@@ -757,8 +758,14 @@ export default function App() {
           aim: conv.aim_snapshot?.key || conv.aim,
           setting: conv.setting_snapshot?.key || conv.setting,
         });
-        const matches = await retrieveRagChunks(supabase, activeRag, resumeQuery, 10);
-        setSessionRagBehaviorBrief(matches.length ? formatRagContextBlock(matches) : null);
+        const matches = await retrieveRagChunks(supabase, activeRag, resumeQuery, 12);
+        if (isGuidePersona(conv.client_snapshot)) {
+          setSessionRagBehaviorBrief(
+            matches.map((m) => m.content.trim()).filter(Boolean).join("\n\n---\n\n") || null
+          );
+        } else {
+          setSessionRagBehaviorBrief(matches.length ? formatRagContextBlock(matches) : null);
+        }
       } catch (e) {
         console.warn("Resume RAG behavior brief:", e);
         setSessionRagBehaviorBrief(null);
@@ -1017,7 +1024,6 @@ export default function App() {
       }
     }
 
-    let systemPrompt = buildSystemPrompt(startHimself, startClient, startAim, startSetting, startChallenge);
     const seedText =
       "(The roleplay is beginning now. Open the conversation yourself, in character, exactly as instructed in your system prompt.)";
     const seedForApi: ChatMessage = {
@@ -1027,6 +1033,7 @@ export default function App() {
         : seedText,
     };
     try {
+      let systemPrompt = buildSystemPrompt(startHimself, startClient, startAim, startSetting, startChallenge);
       if (ragId && newConversationId && profile?.role !== "coach") {
         const behaviorQuery = buildLiveChatRagQuery({
           forSessionStart: true,
@@ -1036,11 +1043,24 @@ export default function App() {
           setting: startSetting.key,
           userText: seedText,
         });
-        const matches = await retrieveRagChunks(supabase, ragId, behaviorQuery, 10);
-        if (matches.length) {
+        const matches = await retrieveRagChunks(supabase, ragId, behaviorQuery, 12);
+        const material = matches.map((m) => m.content.trim()).filter(Boolean).join("\n\n---\n\n");
+        if (isGuidePersona(startClient)) {
+          // Coach-guide practice: prompt is entirely about the guide client.
+          systemPrompt = buildGuideDrivenSystemPrompt(
+            startHimself,
+            startClient,
+            startAim,
+            startSetting,
+            material
+          );
+          setSessionRagBehaviorBrief(material || null);
+        } else if (matches.length) {
           const brief = formatRagContextBlock(matches);
           setSessionRagBehaviorBrief(brief);
           systemPrompt = brief + systemPrompt;
+        }
+        if (matches.length) {
           await logConversationRetrievals(supabase, newConversationId, behaviorQuery, matches);
         }
       }
@@ -1056,12 +1076,51 @@ export default function App() {
   }
 
   async function startRoleplay(nextChallenge: Challenge | null) {
+    setSelectedRagLibraryId(null);
     await startRoleplayWith({
       client,
       aim,
       setting,
       challenge: nextChallenge !== undefined ? nextChallenge : challenge,
       himself,
+      ragLibraryId: null,
+    });
+  }
+
+  /** Open practice from a coach guide — AI client is fully driven by that library. */
+  async function startGuideRoleplay(libraryId: string, grade: Grade) {
+    const startAim = aims.find((a) => a.key === aimKey) || aims[0];
+    const startSetting = packSettings.find((s) => s.key === settingKey) || packSettings[0];
+    if (!startAim || !startSetting) return;
+    const title =
+      enrolledLibraries.find((l) => l.id === libraryId)?.title?.trim() || "Coach guide client";
+    const guideClient: Persona = {
+      id: `guide:${libraryId}`,
+      grade,
+      name: title,
+      age: 35,
+      occupation: "Client",
+      nationality: "Singaporean",
+      edu: "",
+      disc: "I",
+      badExp: "Unknown",
+      badExpReason: "Defined by coach guide material for this practice session.",
+      needLevel: "Defined by coach guide",
+      lifeStage: "Defined by coach guide",
+      field1: "Defined by coach guide",
+      field2: "Defined by coach guide",
+      field3: "Defined by coach guide",
+      notes: "Coach-guide practice client — personality comes from the selected library.",
+      industry: industry === "Property" ? "Property" : "FP",
+    };
+    setSelectedRagLibraryId(libraryId);
+    await startRoleplayWith({
+      client: guideClient,
+      aim: startAim,
+      setting: startSetting,
+      challenge: null,
+      himself,
+      ragLibraryId: libraryId,
     });
   }
 
@@ -1143,8 +1202,11 @@ export default function App() {
           setting: setting.key,
         });
         const matches = await retrieveRagChunks(supabase, sessionRagLibraryId, turnQuery, 8);
-        // Sticky brief from session start + optional turn detail; None selected = original persona only.
-        if (sessionRagBehaviorBrief) {
+        if (isGuidePersona(client)) {
+          const turnMaterial = matches.map((m) => m.content.trim()).filter(Boolean).join("\n\n---\n\n");
+          const material = [sessionRagBehaviorBrief, turnMaterial].filter(Boolean).join("\n\n---\n\n");
+          systemPrompt = buildGuideDrivenSystemPrompt(himself, client, aim, setting, material);
+        } else if (sessionRagBehaviorBrief) {
           systemPrompt =
             sessionRagBehaviorBrief +
             (matches.length ? formatRagTurnSupplement(matches) : "") +
@@ -1550,8 +1612,7 @@ export default function App() {
             ragLibraries={
               profile?.role !== "coach" && profile?.role !== "manager" ? enrolledLibraries : []
             }
-            selectedRagLibraryId={selectedRagLibraryId}
-            onRagLibraryChange={setSelectedRagLibraryId}
+            onStartGuideRoleplay={startGuideRoleplay}
           />
         ) : (
           <ChatScreen

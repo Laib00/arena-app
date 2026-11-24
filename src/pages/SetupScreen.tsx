@@ -3,6 +3,7 @@ import type { CSSProperties, ElementType, MouseEventHandler, ReactNode } from "r
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   CircleArrowDown,
@@ -256,7 +257,7 @@ function relativeTime(iso?: string | null): string {
 }
 
 const WIZARD_STEPS = ["grade", "client", "scenario"] as const;
-type WizardStep = (typeof WIZARD_STEPS)[number];
+type WizardStep = (typeof WIZARD_STEPS)[number] | "guide";
 
 const GRADE_BLURBS: Record<Grade, string> = {
   Easy: "Warm, ready to move, no history with a bad agent. Good for finding your rhythm.",
@@ -272,11 +273,16 @@ const EDUCATION_GRADE_BLURBS: Record<Grade, string> = {
   Impossible: "Contradictory standards or extreme pressure — you can't perfectly please them. You can only handle it well.",
 };
 
-const STEP_COPY: Record<WizardStep, { title: string; subtitle: string }> = {
+const STEP_COPY: Record<Exclude<WizardStep, "guide">, { title: string; subtitle: string }> = {
   grade: { title: "Choose difficulty", subtitle: "How tough should this client be?" },
-  client: { title: "Choose your client", subtitle: "Pick who you'll practise with." },
+  client: { title: "Choose your client", subtitle: "Pick who you'll practise with — or a coach guide." },
   scenario: { title: "Choose scenario", subtitle: "Set the aim and the setting for this conversation." },
 };
+
+const GUIDE_STEP_COPY = {
+  title: "Choose a coach guide",
+  subtitle: "The AI client will act out the scenario in that guide (e.g. goofy, introverted).",
+} as const;
 
 const CHALLENGE_BLURBS: Record<string, string> = {
   price_objection: "The client pushes back on price, value, or affordability — but only once the conversation gets there.",
@@ -456,6 +462,8 @@ type PracticeSetupModalProps = {
   setChallenge?: (challenge: Challenge | null) => void;
   canStart?: boolean;
   onStart: (challenge: Challenge | null) => void;
+  ragLibraries?: RagLibraryOption[];
+  onStartGuide?: (libraryId: string, grade: Grade) => void;
 };
 
 function PracticeSetupModal({
@@ -478,56 +486,95 @@ function PracticeSetupModal({
   settingKey,
   setSettingKey,
   onStart,
+  ragLibraries = [],
+  onStartGuide,
 }: PracticeSetupModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>("grade");
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
+  const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setWizardStep("grade");
     setSelectedGrade(null);
+    setSelectedGuideId(null);
   }, [open]);
 
   if (!open) return null;
 
-  const stepIndex = WIZARD_STEPS.indexOf(wizardStep);
-  const copy = practicePack === "education"
-    ? ({
-        grade: { title: "Choose difficulty", subtitle: "How tough should this interviewer be?" },
-        client: { title: "Choose your interviewer", subtitle: "Pick who will interview you." },
-        scenario: { title: "Choose scenario", subtitle: "Set the aim and the setting for this interview." },
-      } as const)[wizardStep]
-    : STEP_COPY[wizardStep];
+  const progressStep =
+    wizardStep === "guide" ? "client" : (wizardStep as (typeof WIZARD_STEPS)[number]);
+  const stepIndex = WIZARD_STEPS.indexOf(progressStep);
+  const copy =
+    wizardStep === "guide"
+      ? GUIDE_STEP_COPY
+      : practicePack === "education"
+        ? ({
+            grade: { title: "Choose difficulty", subtitle: "How tough should this interviewer be?" },
+            client: { title: "Choose your interviewer", subtitle: "Pick who will interview you." },
+            scenario: { title: "Choose scenario", subtitle: "Set the aim and the setting for this interview." },
+          } as const)[wizardStep]
+        : STEP_COPY[wizardStep];
   const gradeBlurbs = practicePack === "education" ? EDUCATION_GRADE_BLURBS : GRADE_BLURBS;
   const gradeClients = selectedGrade
     ? industryPersonas.filter((p) => p.grade === selectedGrade)
     : [];
   const scenarioReady = Boolean(aimKey && settingKey);
+  const showCoachGuides = ragLibraries.length > 0 && Boolean(onStartGuide);
 
   function goBack() {
     if (wizardStep === "client") {
       pickFixedClient(null);
+      setSelectedGuideId(null);
       setWizardStep("grade");
       return;
     }
-    if (wizardStep === "scenario") {
+    if (wizardStep === "guide") {
+      setSelectedGuideId(null);
       setWizardStep("client");
+      return;
+    }
+    if (wizardStep === "scenario") {
+      setWizardStep(selectedGuideId ? "guide" : "client");
     }
   }
 
   function chooseGrade(grade: Grade) {
     setSelectedGrade(grade);
+    setSelectedGuideId(null);
     setWizardStep("client");
   }
 
   function chooseClient(id: string) {
+    setSelectedGuideId(null);
     pickFixedClient(id);
     setWizardStep("scenario");
   }
 
   function chooseRandom() {
+    setSelectedGuideId(null);
     generateRandom();
     setWizardStep("scenario");
+  }
+
+  function openGuidePicker() {
+    pickFixedClient(null);
+    setSelectedGuideId(null);
+    setWizardStep("guide");
+  }
+
+  function chooseGuide(libraryId: string) {
+    setSelectedGuideId(libraryId);
+    pickFixedClient(null);
+    setWizardStep("scenario");
+  }
+
+  function handleStart() {
+    if (selectedGuideId && selectedGrade && onStartGuide) {
+      onStartGuide(selectedGuideId, selectedGrade);
+      return;
+    }
+    onStart(null);
   }
 
   return (
@@ -634,6 +681,52 @@ function PracticeSetupModal({
                 Generate Random Client
               </button>
             </div>
+            {showCoachGuides && (
+              <button
+                type="button"
+                onClick={openGuidePicker}
+                style={{
+                  width: "100%",
+                  marginBottom: 16,
+                  padding: "16px 18px",
+                  borderRadius: 12,
+                  border: `1.5px solid ${GOLD}`,
+                  background: "#FFF4EC",
+                  color: NAVY,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "center",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 10,
+                    background: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <BookOpen size={20} color={GOLD} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: 15 }}>
+                    Practice with coach guide
+                  </span>
+                  <span style={{ display: "block", fontSize: 13, color: "#6B7280", marginTop: 2, lineHeight: 1.4 }}>
+                    Chat with an AI client shaped entirely by your coach&apos;s materials
+                    (goofy, introverted, etc.).
+                  </span>
+                </span>
+                <ChevronRight size={18} color="#9CA3AF" />
+              </button>
+            )}
             <div className="arena-persona-grid">
               {gradeClients.map((p) => (
                 <PersonaCard
@@ -648,8 +741,63 @@ function PracticeSetupModal({
           </>
         )}
 
+        {wizardStep === "guide" && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <GradeBadge grade={selectedGrade ?? ""} size="md" />
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {ragLibraries.map((lib) => (
+                <li key={lib.id} style={{ marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => chooseGuide(lib.id)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "16px 18px",
+                      borderRadius: 12,
+                      border: selectedGuideId === lib.id ? `2px solid ${NAVY}` : "1px solid #E2DFD6",
+                      background: selectedGuideId === lib.id ? "#FFF4EC" : "#fff",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      color: NAVY,
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <BookOpen size={18} color={GOLD} />
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{lib.title}</span>
+                    </span>
+                    <span style={{ display: "block", fontSize: 12, color: "#6B7280", marginTop: 6, paddingLeft: 28 }}>
+                      Start a roleplay where the client follows this guide
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
         {wizardStep === "scenario" && (
           <>
+            {selectedGuideId && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  background: "#FFF4EC",
+                  border: "1px solid #F5D0B5",
+                  fontSize: 13,
+                  color: NAVY,
+                  lineHeight: 1.45,
+                }}
+              >
+                <strong>Coach guide:</strong>{" "}
+                {ragLibraries.find((l) => l.id === selectedGuideId)?.title || "Selected guide"}
+                . The AI client will be driven by this material.
+              </div>
+            )}
             <div style={{ background: CREAM, border: "1px solid #E8E4DC", borderRadius: 12, padding: 20, marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Aim</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -689,7 +837,7 @@ function PracticeSetupModal({
             <button
               type="button"
               disabled={!scenarioReady}
-              onClick={() => onStart(null)}
+              onClick={handleStart}
               style={{
                 width: "100%", padding: "16px", borderRadius: 10, border: "none",
                 cursor: scenarioReady ? "pointer" : "not-allowed",
@@ -745,10 +893,9 @@ type SetupScreenProps = {
   onReplay?: (session: ConversationSession) => void | Promise<void>;
   onExpandReplayList?: () => void | Promise<void>;
   onViewHistory: () => void;
-  /** Active enrolled coach libraries — trainee practice RAG (optional). */
+  /** Active enrolled coach libraries — shown as a client-step option. */
   ragLibraries?: RagLibraryOption[];
-  selectedRagLibraryId?: string | null;
-  onRagLibraryChange?: (id: string | null) => void;
+  onStartGuideRoleplay?: (libraryId: string, grade: Grade) => void | Promise<void>;
 };
 
 export default function SetupScreen({
@@ -761,8 +908,7 @@ export default function SetupScreen({
   challenges, challenge, setChallenge,
   canStart, startRoleplay, onStartChallenge, recentSessions, onReplay, onExpandReplayList, onViewHistory,
   ragLibraries = [],
-  selectedRagLibraryId = null,
-  onRagLibraryChange,
+  onStartGuideRoleplay,
 }: SetupScreenProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
@@ -854,56 +1000,6 @@ export default function SetupScreen({
           </div>
         </div>
       </header>
-
-      {ragLibraries.length > 0 && onRagLibraryChange && (
-        <div
-          style={{
-            marginBottom: 24,
-            padding: "14px 18px",
-            background: "#fff",
-            border: "1px solid #E8E4DC",
-            borderRadius: 14,
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 12,
-            maxWidth: 520,
-          }}
-        >
-          <label
-            htmlFor="arena-rag-library"
-            style={{ fontSize: 13, fontWeight: 600, color: NAVY, flex: "1 1 200px" }}
-          >
-            Coach practice library (optional)
-          </label>
-          <select
-            id="arena-rag-library"
-            value={selectedRagLibraryId ?? ""}
-            onChange={(e) => onRagLibraryChange(e.target.value || null)}
-            style={{
-              flex: "1 1 220px",
-              minWidth: 180,
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #E2DFD6",
-              fontSize: 14,
-              color: NAVY,
-              background: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            <option value="">None — original personas</option>
-            {ragLibraries.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.title}
-              </option>
-            ))}
-          </select>
-          <p style={{ margin: 0, flex: "1 1 100%", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
-            Select a library to practice against that coach material (the AI client will act out the scenario). Leave on None for Arena&apos;s normal personas. Post-session analysis still uses your enrolled library when available.
-          </p>
-        </div>
-      )}
 
       <div
         style={{
@@ -1118,6 +1214,15 @@ export default function SetupScreen({
           setModalOpen(false);
           startRoleplay(nextChallenge);
         }}
+        ragLibraries={ragLibraries}
+        onStartGuide={
+          onStartGuideRoleplay
+            ? (libraryId, grade) => {
+                setModalOpen(false);
+                void onStartGuideRoleplay(libraryId, grade);
+              }
+            : undefined
+        }
       />
     </div>
   );
