@@ -41,7 +41,9 @@ import { sessionHasChallenge, xpForSession } from "./xp";
 import { APP_BASE, appPath } from "./routes";
 import { clearCoachGoogleIntent, hasCoachGoogleIntent } from "./authCoachIntent";
 import {
+  buildLiveChatRagQuery,
   formatRagContextBlock,
+  formatRagTurnSupplement,
   logConversationRetrievals,
   resolveCoachAnalysisLibraryId,
   retrieveRagChunks,
@@ -569,6 +571,8 @@ export default function App() {
   const [enrolledLibraries, setEnrolledLibraries] = useState<{ id: string; title: string }[]>([]);
   const [selectedRagLibraryId, setSelectedRagLibraryId] = useState<string | null>(null);
   const [sessionRagLibraryId, setSessionRagLibraryId] = useState<string | null>(null);
+  /** Sticky client-behavior brief from the selected library (null = original persona only). */
+  const [sessionRagBehaviorBrief, setSessionRagBehaviorBrief] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile || profile.role === "coach" || profile.role === "manager") return;
@@ -725,9 +729,9 @@ export default function App() {
     if (!conv || !conv.client_snapshot) return;
 
     const rag = (conv as { rag_library_id?: string | null }).rag_library_id ?? null;
-    setSessionRagLibraryId(
-      rag && enrolledLibraries.some((l) => l.id === rag) ? rag : null
-    );
+    const activeRag =
+      rag && enrolledLibraries.some((l) => l.id === rag) ? rag : null;
+    setSessionRagLibraryId(activeRag);
 
     const { data: pastMessages } = await supabase
       .from("messages")
@@ -743,6 +747,25 @@ export default function App() {
     setSettingKey(conv.setting_snapshot?.key || SETTINGS[0].key);
     setChallenge(conv.challenge_snapshot || null);
     setConversationId(conv.id);
+
+    if (activeRag && profile?.role !== "coach" && profile?.role !== "manager") {
+      try {
+        const resumeQuery = buildLiveChatRagQuery({
+          forSessionStart: true,
+          clientName: conv.client_snapshot.name,
+          clientGrade: conv.client_snapshot.grade,
+          aim: conv.aim_snapshot?.key || conv.aim,
+          setting: conv.setting_snapshot?.key || conv.setting,
+        });
+        const matches = await retrieveRagChunks(supabase, activeRag, resumeQuery, 10);
+        setSessionRagBehaviorBrief(matches.length ? formatRagContextBlock(matches) : null);
+      } catch (e) {
+        console.warn("Resume RAG behavior brief:", e);
+        setSessionRagBehaviorBrief(null);
+      }
+    } else {
+      setSessionRagBehaviorBrief(null);
+    }
 
     const restored: ChatMessage[] = (pastMessages || []).map((m) => ({
       role: m.role === "agent" ? "user" as const : "assistant" as const,
@@ -919,6 +942,7 @@ export default function App() {
     const ragId =
       rawRagId && enrolledLibraries.some((l) => l.id === rawRagId) ? rawRagId : null;
     setSessionRagLibraryId(ragId);
+    setSessionRagBehaviorBrief(null);
     setError(null);
     setLoading(true);
     setStep("chat");
@@ -1004,11 +1028,20 @@ export default function App() {
     };
     try {
       if (ragId && newConversationId && profile?.role !== "coach") {
-        const matches = await retrieveRagChunks(supabase, ragId, seedText, 8);
+        const behaviorQuery = buildLiveChatRagQuery({
+          forSessionStart: true,
+          clientName: startClient.name,
+          clientGrade: startClient.grade,
+          aim: startAim.key,
+          setting: startSetting.key,
+          userText: seedText,
+        });
+        const matches = await retrieveRagChunks(supabase, ragId, behaviorQuery, 10);
         if (matches.length) {
-          systemPrompt =
-            formatRagContextBlock(matches) + systemPrompt;
-          await logConversationRetrievals(supabase, newConversationId, seedText, matches);
+          const brief = formatRagContextBlock(matches);
+          setSessionRagBehaviorBrief(brief);
+          systemPrompt = brief + systemPrompt;
+          await logConversationRetrievals(supabase, newConversationId, behaviorQuery, matches);
         }
       }
       const reply = await callGemini(systemPrompt, [seedForApi]);
@@ -1102,10 +1135,25 @@ export default function App() {
       if (!client || !aim || !setting) throw new Error("Roleplay setup is incomplete.");
       let systemPrompt = buildSystemPrompt(himself, client, aim, setting, challenge);
       if (useRag && sessionRagLibraryId && conversationId) {
-        const matches = await retrieveRagChunks(supabase, sessionRagLibraryId, text, 8);
-        if (matches.length) {
+        const turnQuery = buildLiveChatRagQuery({
+          userText: text,
+          clientName: client.name,
+          clientGrade: client.grade,
+          aim: aim.key,
+          setting: setting.key,
+        });
+        const matches = await retrieveRagChunks(supabase, sessionRagLibraryId, turnQuery, 8);
+        // Sticky brief from session start + optional turn detail; None selected = original persona only.
+        if (sessionRagBehaviorBrief) {
+          systemPrompt =
+            sessionRagBehaviorBrief +
+            (matches.length ? formatRagTurnSupplement(matches) : "") +
+            systemPrompt;
+        } else if (matches.length) {
           systemPrompt = formatRagContextBlock(matches) + systemPrompt;
-          await logConversationRetrievals(supabase, conversationId, text, matches);
+        }
+        if (matches.length) {
+          await logConversationRetrievals(supabase, conversationId, turnQuery, matches);
         }
       }
       const reply = await callGemini(systemPrompt, newApiMessages);
@@ -1188,6 +1236,7 @@ export default function App() {
     setConversationId(null);
     setChallenge(null);
     setSessionRagLibraryId(null);
+    setSessionRagBehaviorBrief(null);
     refreshRecentSessions();
     goHome();
   }
@@ -1233,6 +1282,7 @@ export default function App() {
         setChallenge(null);
         setError(null);
         setSessionRagLibraryId(null);
+        setSessionRagBehaviorBrief(null);
       }
     }
   }, [routeConvId, resumeChecked, profile?.id]);

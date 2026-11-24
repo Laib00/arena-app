@@ -874,7 +874,7 @@ export default function SetupScreen({
             htmlFor="arena-rag-library"
             style={{ fontSize: 13, fontWeight: 600, color: NAVY, flex: "1 1 200px" }}
           >
-            Coach knowledge (optional)
+            Coach practice library (optional)
           </label>
           <select
             id="arena-rag-library"
@@ -892,7 +892,7 @@ export default function SetupScreen({
               cursor: "pointer",
             }}
           >
-            <option value="">None</option>
+            <option value="">None — original personas</option>
             {ragLibraries.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.title}
@@ -900,7 +900,7 @@ export default function SetupScreen({
             ))}
           </select>
           <p style={{ margin: 0, flex: "1 1 100%", fontSize: 12, color: "#6B7280", lineHeight: 1.45 }}>
-            Optional for live chat snippets. Post-session coach analysis always uses your enrolled coach library when chunks are embedded — you do not need to select one here.
+            Select a library to practice against that coach material (the AI client will act out the scenario). Leave on None for Arena&apos;s normal personas. Post-session analysis still uses your enrolled library when available.
           </p>
         </div>
       )}

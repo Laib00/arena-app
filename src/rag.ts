@@ -22,6 +22,12 @@ export async function fetchEmbedding(text: string): Promise<number[]> {
   return data.embedding;
 }
 
+/**
+ * Live-chat block: when a coach library is selected, retrieved material should
+ * drive how the AI *client* behaves (e.g. goofy, pushy, joke-heavy) so the
+ * trainee can practice that scenario. With no library selected, this is unused
+ * and the original persona prompt runs unchanged.
+ */
 export function formatRagContextBlock(matches: { content: string; similarity?: number }[]): string {
   if (!matches.length) return "";
   const parts = matches.map((m, i) => {
@@ -32,11 +38,55 @@ export function formatRagContextBlock(matches: { content: string; similarity?: n
   if (block.length > MAX_RAG_CTX_CHARS) {
     block = block.slice(0, MAX_RAG_CTX_CHARS) + "\n… (truncated)";
   }
-  return `REFERENCE KNOWLEDGE (for scene authenticity only — you are still the client/interviewer in character; do not recite long passages; use only what fits naturally in dialogue):
+  return `COACH PRACTICE SCENARIO (selected library — this overrides generic client tone when they conflict):
+You are still the client/interviewer in this roleplay (keep the assigned name, deal context, and aim/setting). Use the material below as your behavior brief for how you act and speak.
+- If the material describes a goofy, joking, difficult, skeptical, or otherwise distinctive client, BE that client: match the personality, humor, quirks, pacing, and pushback.
+- If the material is written as advice for the agent ("how to handle X"), invert it: act as the X client that advice is about, so the trainee can practice.
+- Stay in character in natural dialogue — do not recite the playbook, coach the agent, or break role.
+- Prefer this scenario behavior over a bland default client voice.
 
 ${block}
 
 `;
+}
+
+/** Extra turn snippets when a sticky session brief is already applied. */
+export function formatRagTurnSupplement(matches: { content: string; similarity?: number }[]): string {
+  if (!matches.length) return "";
+  const parts = matches.map((m, i) => {
+    const tag = m.similarity != null ? `[${i + 1}] (score ${m.similarity.toFixed(3)})\n` : `[${i + 1}]\n`;
+    return tag + m.content.trim();
+  });
+  let block = parts.join("\n\n---\n\n");
+  const max = Math.floor(MAX_RAG_CTX_CHARS / 2);
+  if (block.length > max) {
+    block = block.slice(0, max) + "\n… (truncated)";
+  }
+  return `ADDITIONAL SCENARIO DETAIL for this turn (same rules — stay in the practice-client character):\n\n${block}\n\n`;
+}
+
+/** Retrieval query aimed at surfacing client personality / scenario behavior. */
+export function buildLiveChatRagQuery(opts: {
+  userText?: string | null;
+  clientName?: string | null;
+  clientGrade?: string | null;
+  aim?: string | null;
+  setting?: string | null;
+  forSessionStart?: boolean;
+}): string {
+  const parts = [
+    "Coach library practice scenario for live roleplay.",
+    "Client personality, tone, humor, quirks, objections, and how they should behave and speak.",
+    opts.forSessionStart
+      ? "Prioritize material that defines the type of client or situation the trainee should practice against."
+      : null,
+    opts.clientName ? `Client name: ${opts.clientName}.` : null,
+    opts.clientGrade ? `Difficulty: ${opts.clientGrade}.` : null,
+    opts.aim ? `Aim: ${opts.aim}.` : null,
+    opts.setting ? `Setting: ${opts.setting}.` : null,
+    opts.userText?.trim() ? `Latest trainee message:\n${opts.userText.trim()}` : null,
+  ].filter(Boolean);
+  return parts.join("\n");
 }
 
 /** Coach playbook snippets for post-session analysis (not for in-character client speech). */
