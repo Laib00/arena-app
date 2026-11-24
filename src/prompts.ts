@@ -259,9 +259,4 @@ GRADING PHILOSOPHY: Do not simply reward closing the deal or resolving every obj
 Give the trainee direct, honest, specific coaching feedback based on the transcript they provide next. Reference specific moments/quotes from the transcript. Be encouraging but honest — do not inflate praise, and do not be harsh for its own sake. Structure your response with these exact section labels on their own line: OVERALL, STRENGTHS, AREAS TO IMPROVE${isChallenging ? ", CLIENT FIT" : ""}, KEY RECOMMENDATION${coachPlaybookBlock ? ", RELATED TOPICS" : ""}.${isChallenging ? " In CLIENT FIT, assess whether this client was actually a good fit to keep pursuing, and whether the agent's read of that (continuing, pushing back, or disengaging) was the right call — not whether they closed." : ""}${relatedTopicsInstr} Keep the total response under 300 words (RELATED TOPICS may add a little more). Do not use markdown headers (#) or bold asterisks — plain text only.`;
 }
 
-export {
-  buildSystemPrompt,
-  buildEvalPrompt,
-  buildGuideDrivenSystemPrompt,
-  isGuidePersona,
-};
+export { buildSystemPrompt, buildEvalPrompt };
